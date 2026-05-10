@@ -4,52 +4,51 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        type: choice
+        options:
+          - android
+          - windows
+          - linux
+          - macos
+      arch:
+        description: 'Architecture'
+        required: false
+        type: choice
+        options:
+          - amd64
+          - arm64
+          - all
+        default: 'all'
+      env:
+        description: 'Build environment'
+        required: false
+        type: choice
+        options:
+          - stable
+          - beta
+          - ''
+
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - platform: android
-            os: ubuntu-latest
-          - platform: windows
-            os: Windows-2022
-            arch: amd64
-          - platform: linux
-            os: ubuntu-22.04
-            arch: amd64
-          - platform: macos
-            os: macos-15-intel
-            arch: amd64
-          - platform: macos
-            os: macos-latest
-            arch: arm64
-          #          - platform: windows
-          #            os: windows-11-arm
-          #            arch: arm64
-          - platform: linux
-            os: ubuntu-24.04-arm
-            arch: arm64
-
+  build-android:
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event.inputs.platform == 'android')
     steps:
-      - name: Setup rust
-        if: startsWith(matrix.os, 'windows-11-arm')
-        run: |
-          Invoke-WebRequest -Uri "https://win.rustup.rs/aarch64" -OutFile rustup-init.exe
-          .\rustup-init.exe -y --default-toolchain stable
-          $cargoPath = "$env:USERPROFILE\.cargo\bin"
-          Add-Content $env:GITHUB_PATH $cargoPath
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Setup Android Signing
-        if: startsWith(matrix.platform,'android')
         run: |
           echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/keystore.jks
           echo "${{ secrets.SERVICE_JSON }}" | base64 --decode > android/app/google-services.json
@@ -61,18 +60,149 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.0'
-          cache-dependency-path: |
-            core/go.sum
+          cache-dependency-path: core/go.sum
 
       - name: Setup Flutter
-        if: ${{ !(startsWith(matrix.os, 'windows-11-arm') || startsWith(matrix.os, 'ubuntu-24.04-arm')) }}
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: 3.35.7
           cache: true
-      - name: Setup Flutter With Other
-        if: startsWith(matrix.os, 'windows-11-arm') || startsWith(matrix.os, 'ubuntu-24.04-arm')
+
+      - name: Get Flutter Dependency
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Build
+        run: |
+          ENV_FLAG=""
+          if [[ "${{ github.event.inputs.env }}" == "stable" ]]; then
+            ENV_FLAG="--env stable"
+          elif [[ "${{ github.event.inputs.env }}" == "beta" ]]; then
+            ENV_FLAG="--env beta"
+          elif [[ "${{ env.IS_STABLE }}" == "true" ]]; then
+            ENV_FLAG="--env stable"
+          fi
+          dart setup.dart android $ENV_FLAG
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-android-arm64-v8a
+          path: ./dist
+          overwrite: true
+
+  build-windows-amd64:
+    runs-on: Windows-2022
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event.inputs.platform == 'windows' && (github.event.inputs.arch == 'amd64' || github.event.inputs.arch == 'all' || github.event.inputs.arch == ''))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.35.7
+          cache: true
+
+      - name: Get Flutter Dependency
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Build
+        run: |
+          $env:ENV_FLAG = ""
+          if ("${{ github.event.inputs.env }}" -eq "stable") { $env:ENV_FLAG = "--env stable" }
+          elseif ("${{ github.event.inputs.env }}" -eq "beta") { $env:ENV_FLAG = "--env beta" }
+          elseif ("${{ env.IS_STABLE }}" -eq "true") { $env:ENV_FLAG = "--env stable" }
+          dart setup.dart windows --arch amd64 $env:ENV_FLAG
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-windows-amd64
+          path: ./dist
+          overwrite: true
+
+  build-linux-amd64:
+    runs-on: ubuntu-22.04
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event.inputs.platform == 'linux' && (github.event.inputs.arch == 'amd64' || github.event.inputs.arch == 'all' || github.event.inputs.arch == ''))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.35.7
+          cache: true
+
+      - name: Get Flutter Dependency
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Build
+        run: |
+          ENV_FLAG=""
+          if [[ "${{ github.event.inputs.env }}" == "stable" ]]; then
+            ENV_FLAG="--env stable"
+          elif [[ "${{ github.event.inputs.env }}" == "beta" ]]; then
+            ENV_FLAG="--env beta"
+          elif [[ "${{ env.IS_STABLE }}" == "true" ]]; then
+            ENV_FLAG="--env stable"
+          fi
+          dart setup.dart linux --arch amd64 $ENV_FLAG
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-linux-amd64
+          path: ./dist
+          overwrite: true
+
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event.inputs.platform == 'linux' && (github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'all' || github.event.inputs.arch == ''))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: master
@@ -84,19 +214,125 @@ jobs:
           flutter --version
           flutter pub get
 
-      - name: Setup
-        run: dart setup.dart ${{ matrix.platform }} ${{ matrix.arch && format('--arch {0}', matrix.arch) }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
+      - name: Build
+        run: |
+          ENV_FLAG=""
+          if [[ "${{ github.event.inputs.env }}" == "stable" ]]; then
+            ENV_FLAG="--env stable"
+          elif [[ "${{ github.event.inputs.env }}" == "beta" ]]; then
+            ENV_FLAG="--env beta"
+          elif [[ "${{ env.IS_STABLE }}" == "true" ]]; then
+            ENV_FLAG="--env stable"
+          fi
+          dart setup.dart linux --arch arm64 $ENV_FLAG
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: artifact-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) }}
+          name: artifact-linux-arm64
+          path: ./dist
+          overwrite: true
+
+  build-macos-amd64:
+    runs-on: macos-15-intel
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event.inputs.platform == 'macos' && (github.event.inputs.arch == 'amd64' || github.event.inputs.arch == 'all' || github.event.inputs.arch == ''))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.35.7
+          cache: true
+
+      - name: Get Flutter Dependency
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Build
+        run: |
+          ENV_FLAG=""
+          if [[ "${{ github.event.inputs.env }}" == "stable" ]]; then
+            ENV_FLAG="--env stable"
+          elif [[ "${{ github.event.inputs.env }}" == "beta" ]]; then
+            ENV_FLAG="--env beta"
+          elif [[ "${{ env.IS_STABLE }}" == "true" ]]; then
+            ENV_FLAG="--env stable"
+          fi
+          dart setup.dart macos --arch amd64 $ENV_FLAG
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-macos-amd64
+          path: ./dist
+          overwrite: true
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event.inputs.platform == 'macos' && (github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'all' || github.event.inputs.arch == ''))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.35.7
+          cache: true
+
+      - name: Get Flutter Dependency
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Build
+        run: |
+          ENV_FLAG=""
+          if [[ "${{ github.event.inputs.env }}" == "stable" ]]; then
+            ENV_FLAG="--env stable"
+          elif [[ "${{ github.event.inputs.env }}" == "beta" ]]; then
+            ENV_FLAG="--env beta"
+          elif [[ "${{ env.IS_STABLE }}" == "true" ]]; then
+            ENV_FLAG="--env stable"
+          fi
+          dart setup.dart macos --arch arm64 $ENV_FLAG
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-macos-arm64
           path: ./dist
           overwrite: true
 
   changelog:
     runs-on: ubuntu-latest
-    needs: [ build ]
+    needs: [ build-android, build-windows-amd64, build-linux-amd64, build-linux-arm64, build-macos-amd64, build-macos-arm64 ]
+    if: github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,14 +387,15 @@ jobs:
 
   upload:
     permissions: write-all
-    needs: [ build ]
+    needs: [ build-android, build-windows-amd64, build-linux-amd64, build-linux-arm64, build-macos-amd64, build-macos-arm64 ]
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     services:
       telegram-bot-api:
         image: aiogram/telegram-bot-api:latest
         env:
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          TELEGRAM_API_ID: ${{ secrets.TEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TEGRAM_API_HASH }}
         ports:
           - 8081:8081
     steps:
@@ -177,7 +414,7 @@ jobs:
       - name: Generate release.md
         run: |
           tags=($(git tag --merged HEAD --sort=-creatordate))
-          preTag=$(curl -s "https://api.github.com/repos/chen08209/FlClash/releases/latest" | \
+          preTag=$(curl -s "https://api.github.com/repos/Dmitriy-Y/MeowClash/releases/latest" | \
           sed -nE 's/.*"tag_name": "([^"]+)".*/\1/p')
           
           [ -z "$preTag" ] && preTag=""
@@ -194,6 +431,7 @@ jobs:
             git log --no-merges --pretty=format:"%B" "$range" | \
             awk '!/Update changelog/ && NF {print "- " $0 "\n"}' >> "$out"
           done
+
       - name: Push to telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -245,4 +483,3 @@ jobs:
           target-branch: main
           commit-message: Update from ${{ github.ref_name }}
           target-directory: /tmp/
-
