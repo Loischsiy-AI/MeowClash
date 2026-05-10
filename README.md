@@ -8,7 +8,7 @@
 
 > MeowClash is a fork of [FlClash](https://github.com/chen08209/FlClash)
 
-[![Downloads](https://img.shields.io/github/downloads/Dmitriy-Y/MeowClash/total?style=flat-square&logo=github)](https://github.com/Dmitriy-Y/MeowClash/releases/)[![Last Version](https://img.shields.io/github/release/Dmitriy-Y/MeowClash/all.svg?style=flat-square)](https://github.com/Dmitriy-Y/MeowClash/releases/)[![License](https://img.shields.io/github/license/Dmitriy-Y/MeowClash?style=flat-square)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/Loischsiy/MeowClash/total?style=flat-square&logo=github)](https://github.com/Loischsiy/MeowClash/releases/)[![Last Version](https://img.shields.io/github/release/Loischsiy/MeowClash/all.svg?style=flat-square)](https://github.com/Loischsiy/MeowClash/releases/)[![License](https://img.shields.io/github/license/Loischsiy/MeowClash?style=flat-square)](LICENSE)
 
 A multi-platform proxy client based on ClashMeta, simple and easy to use, open-source and ad-free.
 
@@ -121,7 +121,7 @@ Support the following actions
 The easiest way to support developers is to click on the star (⭐) at the top of the page.
 
 <p style="text-align: center;">
-    <a href="https://api.star-history.com/svg?repos=Dmitriy-Y/MeowClash&Date">
-        <img alt="start" width=50% src="https://api.star-history.com/svg?repos=Dmitriy-Y/MeowClash&Date"/>
+    <a href="https://api.star-history.com/svg?repos=Loischsiy/MeowClash&Date">
+        <img alt="start" width=50% src="https://api.star-history.com/svg?repos=Loischsiy/MeowClash&Date"/>
     </a>
 </p>
