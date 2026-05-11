@@ -74,11 +74,24 @@ jobs:
           flutter --version
           flutter pub get
 
-      - name: Build Core
-        run: dart setup.dart android --out core
+      - name: Build
+        run: |
+          ENV_FLAG=""
+          if [[ "${{ github.event.inputs.env }}" == "stable" ]]; then
+            ENV_FLAG="--env stable"
+          elif [[ "${{ github.event.inputs.env }}" == "beta" ]]; then
+            ENV_FLAG="--env beta"
+          elif [[ "${{ env.IS_STABLE }}" == "true" ]]; then
+            ENV_FLAG="--env stable"
+          fi
+          dart setup.dart android $ENV_FLAG 2>&1 | tee setup.log
 
-      - name: Build APK (verbose)
-        run: flutter build apk --release --verbose --split-per-abi 2>&1 | tee build.log
+      - name: Upload setup log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-log
+          path: setup.log
 
       - name: Upload
         uses: actions/upload-artifact@v4
