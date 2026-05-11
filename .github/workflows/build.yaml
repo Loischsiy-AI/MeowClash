@@ -74,17 +74,11 @@ jobs:
           flutter --version
           flutter pub get
 
-      - name: Build
-        run: |
-          ENV_FLAG=""
-          if [[ "${{ github.event.inputs.env }}" == "stable" ]]; then
-            ENV_FLAG="--env stable"
-          elif [[ "${{ github.event.inputs.env }}" == "beta" ]]; then
-            ENV_FLAG="--env beta"
-          elif [[ "${{ env.IS_STABLE }}" == "true" ]]; then
-            ENV_FLAG="--env stable"
-          fi
-          dart setup.dart android $ENV_FLAG
+      - name: Build Core
+        run: dart setup.dart android --out core
+
+      - name: Build APK (verbose)
+        run: flutter build apk --release --verbose --split-per-abi 2>&1 | tee build.log
 
       - name: Upload
         uses: actions/upload-artifact@v4
@@ -371,7 +365,7 @@ jobs:
           if ! git diff --cached --quiet; then
             echo "Commit pushing"
             git config --local user.email "dmitriy.work@gmail.com"
-            git config --local user.name "Dmitriy-Y"
+            git config --local user.name "Loischsiy"
             git commit -m "Update changelog"
             git push
             if [ $? -eq 0 ]; then
@@ -414,7 +408,7 @@ jobs:
       - name: Generate release.md
         run: |
           tags=($(git tag --merged HEAD --sort=-creatordate))
-          preTag=$(curl -s "https://api.github.com/repos/Dmitriy-Y/MeowClash/releases/latest" | \
+          preTag=$(curl -s "https://api.github.com/repos/Loischsiy/MeowClash/releases/latest" | \
           sed -nE 's/.*"tag_name": "([^"]+)".*/\1/p')
           
           [ -z "$preTag" ] && preTag=""
@@ -476,7 +470,7 @@ jobs:
           SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
         with:
           source-directory: ./tmp/
-          destination-github-username: Dmitriy-Y
+          destination-github-username: Loischsiy
           destination-repository-name: MeowClash-fdroid-repo
           user-name: 'github-actions[bot]'
           user-email: 'github-actions[bot]@users.noreply.github.com'
