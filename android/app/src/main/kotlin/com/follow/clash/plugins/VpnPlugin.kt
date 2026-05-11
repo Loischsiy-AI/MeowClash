@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.withLock
 
 data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
-    private var meowClashService: BaseServiceInterface? = null
+    private var bettBoxService: BaseServiceInterface? = null
     private var options: VpnOptions? = null
 
     private var isBind = false
@@ -83,7 +83,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             bindTimeoutJob = null
             isBind = true
             isBinding.set(false)
-            meowClashService = when (service) {
+            bettBoxService = when (service) {
                 is MeowClashVpnService.LocalBinder -> service.getService()
                 is MeowClashService.LocalBinder -> service.getService()
                 else -> throw Exception("invalid binder")
@@ -94,7 +94,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         override fun onServiceDisconnected(arg: ComponentName) {
             isBind = false
             isBinding.set(false)
-            meowClashService = null
+            bettBoxService = null
             if (GlobalState.currentRunState == RunState.START) {
                 android.util.Log.w("VpnPlugin", "Service unexpectedly disconnected while running, syncing state")
                 GlobalState.updateRunState(RunState.STOP)
@@ -122,7 +122,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             scope.launch { registerNetworkCallback() }
         }
 
-        if (GlobalState.currentRunState == RunState.START && meowClashService == null) {
+        if (GlobalState.currentRunState == RunState.START && bettBoxService == null) {
             android.util.Log.d("VpnPlugin", "VPN is running but service connection lost, rebinding...")
             options?.let { bindService() }
         }
@@ -223,7 +223,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     fun handleStart(options: VpnOptions): Boolean {
         onUpdateNetwork()
         if (options.enable != this.options?.enable) {
-            this.meowClashService = null
+            this.bettBoxService = null
         }
         this.options = options
         when (options.enable) {
@@ -383,7 +383,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         if (!shouldUpdate) return
 
         try {
-            meowClashService?.startForeground()
+            bettBoxService?.startForeground()
         } catch (e: Exception) {
             android.util.Log.e("VpnPlugin", "startForeground error: ${e.message}")
         }
@@ -392,9 +392,9 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     fun updateNotificationIcon() {
         scope.launch {
             runCatching {
-                (meowClashService as? MeowClashService)?.resetNotificationBuilder()
-                (meowClashService as? MeowClashVpnService)?.resetNotificationBuilder()
-                meowClashService?.startForeground()
+                (bettBoxService as? MeowClashService)?.resetNotificationBuilder()
+                (bettBoxService as? MeowClashVpnService)?.resetNotificationBuilder()
+                bettBoxService?.startForeground()
             }.onFailure {
                 android.util.Log.e("VpnPlugin", "updateNotificationIcon error: ${it.message}")
             }
@@ -403,7 +403,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
     fun getStatus(): Boolean {
         return GlobalState.runLock.withLock {
-            GlobalState.currentRunState == RunState.START && meowClashService != null
+            GlobalState.currentRunState == RunState.START && bettBoxService != null
         }
     }
 
@@ -412,7 +412,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             android.util.Log.w("VpnPlugin", "VPN is in stopping state, ignore start request")
             return
         }
-        if (meowClashService == null) {
+        if (bettBoxService == null) {
             bindService()
             return
         }
@@ -470,7 +470,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     ) {
         var fd: Int? = 0
         try {
-            fd = meowClashService?.start(currentOptions)
+            fd = bettBoxService?.start(currentOptions)
         } catch (e: Exception) {
             android.util.Log.e("VpnPlugin", "First start attempt failed: ${e.message}")
         }
@@ -480,7 +480,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 android.util.Log.w("VpnPlugin", "VPN establish failed, retrying...")
                 delay(300)
                 try {
-                    fd = meowClashService?.start(currentOptions)
+                    fd = bettBoxService?.start(currentOptions)
                 } catch (e: Exception) {
                     android.util.Log.e("VpnPlugin", "Retry start failed: ${e.message}")
                 }
@@ -498,7 +498,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
         val canStart = GlobalState.runLock.withLock {
             if (GlobalState.currentRunState != RunState.START) {
-                meowClashService?.stop()
+                bettBoxService?.stop()
                 false
             } else true
         }
@@ -526,7 +526,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     }
 
     private fun protect(fd: Int): Boolean = runCatching {
-        (meowClashService as? MeowClashVpnService)?.protect(fd) == true
+        (bettBoxService as? MeowClashVpnService)?.protect(fd) == true
     }.getOrElse {
         android.util.Log.e("VpnPlugin", "protect error: ${it.message}")
         false
@@ -563,9 +563,9 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             if (!force && GlobalState.currentRunState == RunState.STOP) return
             GlobalState.updateIsStopping(true)
             GlobalState.updateRunState(RunState.STOP)
-            serviceRef = meowClashService
+            serviceRef = bettBoxService
             wasBound = isBind
-            shouldForceStop = force || meowClashService == null
+            shouldForceStop = force || bettBoxService == null
         }
 
         suspendModule?.uninstall()
@@ -578,7 +578,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 MeowClashApplication.getAppContext().unbindService(connection)
                 isBind = false
             }
-            meowClashService = null
+            bettBoxService = null
         }.onFailure {
             android.util.Log.e("VpnPlugin", "unbindService error: ${it.message}")
         }
@@ -627,7 +627,7 @@ data object VpnPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 GlobalState.isSmartStopped = false
                 this@VpnPlugin.options = options
 
-                if (meowClashService == null) {
+                if (bettBoxService == null) {
                     bindService()
                     return@withLock false
                 }
