@@ -1,5 +1,5 @@
-display_name: FlClash
-package_name: FlClash
+display_name: MeowClash
+package_name: MeowClash
 maintainer:
   name: chen08209
   email: chen08209@gmail.com
@@ -15,12 +15,12 @@ dependencies:
   - libkeybinder-3.0-dev
 
 keywords:
-  - FlClash
+  - MeowClash
   - Clash
   - ClashMeta
   - Proxy
 
-generic_name: FlClash
+generic_name: MeowClash
 
 categories:
   - Network

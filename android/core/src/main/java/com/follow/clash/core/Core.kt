@@ -1,136 +1,66 @@
 package com.follow.clash.core
 
-import java.net.InetAddress
+import android.util.Log
 import java.net.InetSocketAddress
-import java.net.URL
 
-data object Core {
-    private external fun startTun(
-        fd: Int,
-        cb: TunInterface,
-        stack: String,
-        address: String,
-        dns: String,
-    )
+object Core {
 
-    external fun forceGC(
-    )
+    private external fun startTun(fd: Int, cb: TunInterface)
+    private external fun suspend(suspended: Int)
+    external fun stopTun()
 
-    external fun updateDNS(
-        dns: String,
-    )
+    init {
+        System.loadLibrary("core")
+    }
 
     private fun parseInetSocketAddress(address: String): InetSocketAddress {
-        val url = URL("https://$address")
+        val lastColonIndex = address.lastIndexOf(':')
+        if (lastColonIndex == -1) {
+            return InetSocketAddress(address, 0)
+        }
 
-        return InetSocketAddress(InetAddress.getByName(url.host), url.port)
+        val host = address.substring(0, lastColonIndex).removeSurrounding("[", "]")
+        val port = address.substring(lastColonIndex + 1).toIntOrNull() ?: 0
+
+        return InetSocketAddress(host, port)
     }
 
     fun startTun(
         fd: Int,
         protect: (Int) -> Boolean,
-        resolverProcess: (protocol: Int, source: InetSocketAddress, target: InetSocketAddress, uid: Int) -> String,
-        stack: String,
-        address: String,
-        dns: String,
+        resolverProcess: (protocol: Int, source: InetSocketAddress, target: InetSocketAddress, uid: Int) -> String
     ) {
-        startTun(
-            fd,
-            object : TunInterface {
-                override fun protect(fd: Int) {
-                    protect(fd)
-                }
+        startTun(fd, object : TunInterface {
+            override fun protect(fd: Int) {
+                runCatching { protect(fd) }
+                    .onFailure { Log.e("Core", "protect JNI callback error: ${it.message}") }
+            }
 
-                override fun resolverProcess(
-                    protocol: Int,
-                    source: String,
-                    target: String,
-                    uid: Int
-                ): String {
-                    return resolverProcess(
-                        protocol,
-                        parseInetSocketAddress(source),
-                        parseInetSocketAddress(target),
-                        uid,
-                    )
-                }
-            },
-            stack,
-            address,
-            dns
-        )
+            override fun resolverProcess(
+                protocol: Int,
+                source: String,
+                target: String,
+                uid: Int
+            ): String = runCatching {
+                resolverProcess(
+                    protocol,
+                    parseInetSocketAddress(source),
+                    parseInetSocketAddress(target),
+                    uid
+                )
+            }.onFailure {
+                Log.e("Core", "resolverProcess JNI callback error: ${it.message}")
+            }.getOrDefault("")
+        })
     }
 
-    external fun suspended(
-        suspended: Boolean,
-    )
-
-    private external fun invokeAction(
-        data: String,
-        cb: InvokeInterface
-    )
-
-    fun invokeAction(
-        data: String,
-        cb: (result: String?) -> Unit
-    ) {
-        invokeAction(
-            data,
-            object : InvokeInterface {
-                override fun onResult(result: String?) {
-                    cb(result)
-                }
-            },
-        )
-    }
-
-    private external fun setEventListener(cb: InvokeInterface?)
-
-    fun callSetEventListener(
-        cb: ((result: String?) -> Unit)?
-    ) {
-        when (cb != null) {
-            true -> setEventListener(
-                object : InvokeInterface {
-                    override fun onResult(result: String?) {
-                        cb(result)
-                    }
-                },
-            )
-
-            false -> setEventListener(null)
+    fun suspended(value: Boolean) {
+        runCatching {
+            Log.d("Core", "suspended called with value: $value")
+            suspend(if (value) 1 else 0)
+            Log.d("Core", "suspend JNI call completed")
+        }.onFailure {
+            Log.e("Core", "Error calling suspend: ${it.message}", it)
         }
-    }
-
-    fun quickSetup(
-        initParamsString: String,
-        setupParamsString: String,
-        cb: (result: String?) -> Unit,
-    ) {
-        quickSetup(
-            initParamsString,
-            setupParamsString,
-            object : InvokeInterface {
-                override fun onResult(result: String?) {
-                    cb(result)
-                }
-            },
-        )
-    }
-
-    private external fun quickSetup(
-        initParamsString: String,
-        setupParamsString: String,
-        cb: InvokeInterface
-    )
-
-    external fun stopTun()
-
-    external fun getTraffic(onlyStatisticsProxy: Boolean): String
-
-    external fun getTotalTraffic(onlyStatisticsProxy: Boolean): String
-
-    init {
-        System.loadLibrary("core")
     }
 }

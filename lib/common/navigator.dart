@@ -1,6 +1,6 @@
 import 'package:animations/animations.dart';
-import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/controller.dart';
+import 'package:meow_clash/common/common.dart';
+import 'package:meow_clash/controller.dart';
 import 'package:flutter/material.dart';
 
 class BaseNavigator {

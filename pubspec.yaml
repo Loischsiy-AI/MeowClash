@@ -67,6 +67,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  ffigen: ^20.1.1
   json_serializable: ^6.7.1
   build_runner: ^2.7.1
   args: ^2.4.2
@@ -100,3 +101,10 @@ flutter_intl:
   class_name: AppLocalizations
   arb_dir: arb
   output_dir: lib/l10n
+
+ffigen:
+  name: "ClashFFI"
+  output: 'lib/clash/generated/clash_ffi.dart'
+  headers:
+    entry-points:
+      - 'libclash/android/arm64-v8a/libclash.h'

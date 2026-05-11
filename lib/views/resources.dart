@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/controller.dart';
-import 'package:fl_clash/core/core.dart';
-import 'package:fl_clash/models/models.dart';
-import 'package:fl_clash/providers/config.dart';
-import 'package:fl_clash/state.dart';
-import 'package:fl_clash/widgets/widgets.dart';
+import 'package:meow_clash/common/common.dart';
+import 'package:meow_clash/controller.dart';
+import 'package:meow_clash/core/core.dart';
+import 'package:meow_clash/models/models.dart';
+import 'package:meow_clash/providers/config.dart';
+import 'package:meow_clash/state.dart';
+import 'package:meow_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' hide context;

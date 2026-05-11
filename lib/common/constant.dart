@@ -4,9 +4,9 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:collection/collection.dart';
-import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/models/models.dart';
+import 'package:meow_clash/common/common.dart';
+import 'package:meow_clash/enum/enum.dart';
+import 'package:meow_clash/models/models.dart';
 import 'package:flutter/material.dart';
 
 const appName = 'FlClash';

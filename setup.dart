@@ -290,7 +290,7 @@ class Build {
     final targetPath = join(
       outDir,
       target.name,
-      'FlClashHelperService${target.executableExtensionName}',
+      'MeowClashHelperService${target.executableExtensionName}',
     );
     await File(outPath).copy(targetPath);
   }
