@@ -32,6 +32,8 @@ class GlobalState {
   final navigatorKey = GlobalKey<NavigatorState>();
   Timer? timer;
   bool isPre = true;
+  bool isExiting = false;
+  bool isService = false;
   late final String coreSHA256;
   late final PackageInfo packageInfo;
   Function? updateCurrentDelayDebounce;
