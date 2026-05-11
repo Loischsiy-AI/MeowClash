@@ -2,7 +2,6 @@
 
 import 'dart:io';
 
-import 'package:meow_clash/common/color.dart';
 import 'package:meow_clash/common/system.dart';
 import 'package:meow_clash/views/dashboard/widgets/widgets.dart';
 import 'package:meow_clash/widgets/widgets.dart';
@@ -41,8 +40,7 @@ enum GroupType {
   Selector,
   URLTest,
   Fallback,
-  LoadBalance,
-  Relay;
+  LoadBalance;
 
   static GroupType parseProfileType(String type) {
     return switch (type) {
@@ -50,7 +48,6 @@ enum GroupType {
       'select' => Selector,
       'fallback' => Fallback,
       'load-balance' => LoadBalance,
-      'relay' => Relay,
       String() => throw UnimplementedError(),
     };
   }
@@ -86,6 +83,8 @@ extension UsedProxyExtension on UsedProxy {
 
 enum Mode { rule, global, direct }
 
+enum IpClickBehavior { privacyProtection, manualRefresh, switchDomestic }
+
 enum ViewMode { mobile, laptop, desktop }
 
 enum LogLevel { debug, info, warning, error, silent }
@@ -96,7 +95,7 @@ extension LogLevelExt on LogLevel {
       LogLevel.silent => Colors.grey.shade700,
       LogLevel.debug => Colors.grey.shade400,
       LogLevel.info => null,
-      LogLevel.warning => Colors.orangeAccent.darken(),
+      LogLevel.warning => const Color.fromARGB(230, 255, 166, 0),
       LogLevel.error => Colors.redAccent,
     };
   }
@@ -127,13 +126,13 @@ enum ResultType {
   error,
 }
 
-enum CoreEventType { log, delay, request, loaded, crash }
+enum AppMessageType { log, delay, request, loaded }
 
 enum InvokeMessageType { protect, process }
 
 enum FindProcessMode { always, off }
 
-enum RestoreOption { all, onlyProfiles }
+enum RecoveryOption { all, onlyProfiles }
 
 enum ChipType { action, delete }
 
@@ -157,6 +156,10 @@ enum DnsMode {
   redirHost,
   hosts,
 }
+
+enum CacheAlgorithm { arc, lru }
+
+enum FilterMode { blacklist, whitelist, rule }
 
 enum ExternalControllerStatus {
   @JsonValue('')
@@ -197,7 +200,7 @@ extension KeyboardModifierExt on KeyboardModifier {
 
 enum HotAction { start, view, mode, proxy, tun }
 
-enum ProxiesIconStyle { none, standard, icon }
+enum ProxiesIconStyle { standard, none, icon }
 
 enum FontFamily {
   twEmoji('Twemoji'),
@@ -243,7 +246,8 @@ enum ActionMethod {
   getMemory,
   crash,
   setupConfig,
-  deleteFile,
+  flushFakeIP,
+  flushDnsCache,
 
   ///Android,
   setState,
@@ -260,8 +264,8 @@ enum AuthorizeCode { none, success, error }
 enum WindowsHelperServiceStatus { none, presence, running }
 
 enum FunctionTag {
-  updateConfig,
-  setupConfig,
+  updateClashConfig,
+  setupClashConfig,
   updateStatus,
   updateGroups,
   addCheckIpNum,
@@ -280,12 +284,13 @@ enum FunctionTag {
   logs,
   requests,
   autoScrollToEnd,
-  loadedProvider,
-  saveSharedFile,
 }
 
 enum DashboardWidget {
   networkSpeed(GridItem(crossAxisCellCount: 8, child: NetworkSpeed())),
+  networkSpeedSmall(
+    GridItem(crossAxisCellCount: 4, child: NetworkSpeedSmall()),
+  ),
   outboundModeV2(GridItem(crossAxisCellCount: 8, child: OutboundModeV2())),
   outboundMode(GridItem(crossAxisCellCount: 4, child: OutboundMode())),
   trafficUsage(GridItem(crossAxisCellCount: 4, child: TrafficUsage())),
@@ -303,7 +308,22 @@ enum DashboardWidget {
     platforms: desktopPlatforms,
   ),
   intranetIp(GridItem(crossAxisCellCount: 4, child: IntranetIP())),
-  memoryInfo(GridItem(crossAxisCellCount: 4, child: MemoryInfo()));
+  memoryInfo(GridItem(crossAxisCellCount: 4, child: MemoryInfo())),
+  connectionsCount(GridItem(crossAxisCellCount: 4, child: ConnectionsCount())),
+  ipv6Switch(GridItem(crossAxisCellCount: 4, child: Ipv6Switch())),
+  wakelockSwitch(
+    GridItem(crossAxisCellCount: 4, child: WakelockSwitch()),
+    platforms: desktopPlatforms,
+  ),
+  dnsOverride(GridItem(crossAxisCellCount: 4, child: DnsOverride())),
+  snifferOverride(GridItem(crossAxisCellCount: 4, child: SnifferOverride())),
+  ntpOverride(GridItem(crossAxisCellCount: 4, child: NtpOverride())),
+  providersInfo(GridItem(crossAxisCellCount: 4, child: ProvidersInfo())),
+  fcmStatus(GridItem(crossAxisCellCount: 4, child: FcmStatus())),
+  onlinePanel(GridItem(crossAxisCellCount: 4, child: OnlinePanel())),
+  startButton(
+    GridItem(crossAxisCellCount: 4, isDeletable: false, child: StartButton()),
+  );
 
   final GridItem widget;
   final List<SupportPlatform> platforms;
@@ -329,6 +349,7 @@ enum PageLabel {
   logs,
   requests,
   resources,
+  script,
   connections,
 }
 
@@ -370,18 +391,6 @@ enum RuleAction {
   final String value;
 
   const RuleAction(this.value);
-
-  static List<RuleAction> get addedRuleActions {
-    return RuleAction.values
-        .where(
-          (item) => ![
-            RuleAction.MATCH,
-            RuleAction.RULE_SET,
-            RuleAction.SUB_RULE,
-          ].contains(item),
-        )
-        .toList();
-  }
 }
 
 extension RuleActionExt on RuleAction {
@@ -398,29 +407,28 @@ extension RuleActionExt on RuleAction {
 
 enum OverrideRuleType { override, added }
 
-enum OverwriteType {
-  // none,
-  standard,
-  script,
-  // custom,
-}
+enum RuleTarget { DIRECT, REJECT }
 
-enum RuleTarget { DIRECT, REJECT, MATCH }
-
-enum RestoreStrategy { compatible, override }
+enum RecoveryStrategy { compatible, override }
 
 enum CacheTag { logs, rules, requests, proxiesList }
 
-enum Language { yaml, javaScript, json }
+enum Language { yaml, javaScript }
 
-enum ImportOption { file, url }
+enum ImportOption { code, url, file }
 
-enum ScrollPositionCacheKey { tools, profiles, proxiesList, proxiesTabList }
+enum ScrollPositionCacheKeys { tools, profiles, proxiesList, proxiesTabList }
 
-enum QueryTag { proxies, access }
-
-enum LoadingTag { profiles, backup_restore, access, proxies }
-
-enum CoreStatus { connecting, connected, disconnected }
-
-enum RuleScene { added, disabled, custom }
+enum DelayAnimationType {
+  none,
+  rotatingCircle,
+  pulse,
+  spinningLines,
+  threeInOut,
+  threeBounce,
+  circle,
+  fadingCircle,
+  fadingFour,
+  wave,
+  doubleBounce,
+}

@@ -1,6 +1,7 @@
-import 'dart:io';
+// ignore_for_file: invalid_annotation_target
 
-import 'package:collection/collection.dart';
+import 'dart:math';
+
 import 'package:meow_clash/common/common.dart';
 import 'package:meow_clash/enum/enum.dart';
 import 'package:flutter/material.dart';
@@ -35,33 +36,6 @@ abstract class Package with _$Package {
 
   factory Package.fromJson(Map<String, Object?> json) =>
       _$PackageFromJson(json);
-}
-
-extension PackagesExt on List<Package> {
-  List<Package> getViewList({
-    required List<String> pinedList,
-    required AccessSortType sortType,
-    required bool isFilterSystemApp,
-    required bool isFilterNonInternetApp,
-  }) {
-    return where(
-      (item) =>
-          (isFilterSystemApp ? item.system == false : true) &&
-          (isFilterNonInternetApp ? item.internet == true : true),
-    ).sorted((a, b) {
-      final isSelectA = pinedList.contains(a.packageName);
-      final isSelectB = pinedList.contains(b.packageName);
-
-      if (isSelectA != isSelectB) {
-        return isSelectA ? -1 : 1;
-      }
-      return switch (sortType) {
-        AccessSortType.none => 0,
-        AccessSortType.name => a.label.compareTo(b.label),
-        AccessSortType.time => b.lastUpdateTime.compareTo(a.lastUpdateTime),
-      };
-    });
-  }
 }
 
 @freezed
@@ -125,9 +99,9 @@ extension TrackerInfoExt on TrackerInfo {
     final process = metadata.process;
     final uid = metadata.uid;
     if (uid != 0) {
-      return '$process($uid)'.trim();
+      return '$process($uid)';
     }
-    return process.trim();
+    return process;
   }
 }
 
@@ -143,13 +117,14 @@ String _logDateTime(dynamic _) {
 abstract class Log with _$Log {
   const factory Log({
     // @JsonKey(fromJson: _logId) required String id,
-    @JsonKey(name: 'LogLevel') @Default(LogLevel.info) LogLevel logLevel,
+    @JsonKey(name: 'LogLevel') @Default(LogLevel.error) LogLevel logLevel,
     @JsonKey(name: 'Payload') @Default('') String payload,
     @JsonKey(fromJson: _logDateTime) required String dateTime,
   }) = _Log;
 
   factory Log.app(String payload) {
     return Log(
+      logLevel: LogLevel.info,
       payload: payload,
       dateTime: _logDateTime(null),
       // id: _logId(null),
@@ -165,7 +140,7 @@ abstract class LogsState with _$LogsState {
     @Default([]) List<Log> logs,
     @Default([]) List<String> keywords,
     @Default('') String query,
-    @Default(true) bool autoScrollToEnd,
+    @Default(false) bool autoScrollToEnd,
   }) = _LogsState;
 }
 
@@ -187,7 +162,7 @@ abstract class TrackerInfosState with _$TrackerInfosState {
     @Default([]) List<TrackerInfo> trackerInfos,
     @Default([]) List<String> keywords,
     @Default('') String query,
-    @Default(true) bool autoScrollToEnd,
+    @Default(false) bool autoScrollToEnd,
   }) = _TrackerInfosState;
 }
 
@@ -217,16 +192,15 @@ extension TrackerInfosStateExt on TrackerInfosState {
 const defaultDavFileName = 'backup.zip';
 
 @freezed
-abstract class DAVProps with _$DAVProps {
-  const factory DAVProps({
+abstract class DAV with _$DAV {
+  const factory DAV({
     required String uri,
     required String user,
     required String password,
     @Default(defaultDavFileName) String fileName,
-  }) = _DAVProps;
+  }) = _DAV;
 
-  factory DAVProps.fromJson(Map<String, Object?> json) =>
-      _$DAVPropsFromJson(json);
+  factory DAV.fromJson(Map<String, Object?> json) => _$DAVFromJson(json);
 }
 
 @freezed
@@ -237,7 +211,7 @@ abstract class FileInfo with _$FileInfo {
 
 extension FileInfoExt on FileInfo {
   String get desc =>
-      '${size.traffic.show}  ·  ${lastModified.lastUpdateTimeDesc}';
+      '${TrafficValue(value: size).show}  ·  ${lastModified.lastUpdateTimeDesc}';
 }
 
 @freezed
@@ -251,38 +225,50 @@ abstract class VersionInfo with _$VersionInfo {
       _$VersionInfoFromJson(json);
 }
 
-@freezed
-abstract class Traffic with _$Traffic {
-  const factory Traffic({@Default(0) num up, @Default(0) num down}) = _Traffic;
+class Traffic {
+  int id;
+  TrafficValue up;
+  TrafficValue down;
 
-  factory Traffic.fromJson(Map<String, Object?> json) =>
-      _$TrafficFromJson(json);
-}
+  Traffic({int? up, int? down})
+    : id = DateTime.now().millisecondsSinceEpoch,
+      up = TrafficValue(value: up),
+      down = TrafficValue(value: down);
 
-extension TrafficExt on Traffic {
-  String get speedText {
-    return '↑ ${up.traffic.show}/s   ↓ ${down.traffic.show}/s';
+  num get speed => up.value + down.value;
+
+  factory Traffic.fromMap(Map<String, dynamic> map) {
+    return Traffic(up: map['up'], down: map['down']);
   }
 
-  String get desc {
-    return '${up.traffic.show} ↑ ${down.traffic.show} ↓';
+  String toSpeedText() {
+    return '↑ $up/s   ↓ $down/s';
   }
 
-  String get trayTitle {
-    return '${up.shortTraffic.show}/s \n ${down.shortTraffic.show}/s';
+  @override
+  String toString() {
+    return '$up↑ $down↓';
   }
 
-  num get speed => up + down;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Traffic &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          up == other.up &&
+          down == other.down;
+
+  @override
+  int get hashCode => id.hashCode ^ up.hashCode ^ down.hashCode;
 }
 
-@freezed
-abstract class TrafficShow with _$TrafficShow {
-  const factory TrafficShow({required String value, required String unit}) =
-      _TrafficShow;
-}
+@immutable
+class TrafficValueShow {
+  final double value;
+  final TrafficUnit unit;
 
-extension TrafficShowExt on TrafficShow {
-  String get show => '$value$unit';
+  const TrafficValueShow({required this.value, required this.unit});
 }
 
 @freezed
@@ -329,6 +315,67 @@ extension GroupExt on Group {
   }
 }
 
+@immutable
+class TrafficValue {
+  final int _value;
+
+  const TrafficValue({int? value}) : _value = value ?? 0;
+
+  int get value => _value;
+
+  String get show => '$showValue $showUnit';
+
+  String get shortShow =>
+      '${trafficValueShow.value.fixed(decimals: 1)} $showUnit';
+
+  String get showValue => trafficValueShow.value.fixed();
+
+  String get showUnit => trafficValueShow.unit.name;
+
+  TrafficValueShow get trafficValueShow {
+    if (_value > pow(1024, 4)) {
+      return TrafficValueShow(
+        value: _value / pow(1024, 4),
+        unit: TrafficUnit.TB,
+      );
+    }
+    if (_value > pow(1024, 3)) {
+      return TrafficValueShow(
+        value: _value / pow(1024, 3),
+        unit: TrafficUnit.GB,
+      );
+    }
+    if (_value > pow(1024, 2)) {
+      return TrafficValueShow(
+        value: _value / pow(1024, 2),
+        unit: TrafficUnit.MB,
+      );
+    }
+    if (_value > pow(1024, 1)) {
+      return TrafficValueShow(
+        value: _value / pow(1024, 1),
+        unit: TrafficUnit.KB,
+      );
+    }
+    return TrafficValueShow(value: _value.toDouble(), unit: TrafficUnit.B);
+  }
+
+  @override
+  String toString() {
+    return '$showValue$showUnit';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TrafficValue &&
+          runtimeType == other.runtimeType &&
+          _value == other._value;
+
+  @override
+  int get hashCode => _value.hashCode;
+}
+
 @freezed
 abstract class ColorSchemes with _$ColorSchemes {
   const factory ColorSchemes({
@@ -367,71 +414,66 @@ extension ColorSchemesExt on ColorSchemes {
   }
 }
 
-@freezed
-abstract class IpInfo with _$IpInfo {
-  const factory IpInfo({required String ip, required String countryCode}) =
-      _IpInfo;
+class IpInfo {
+  final String ip;
+  final String countryCode;
 
-  static IpInfo fromIpInfoIoJson(Map<String, dynamic> json) {
-    return switch (json) {
-      {'ip': final String ip, 'country': final String country} => IpInfo(
-        ip: ip,
-        countryCode: country,
-      ),
-      _ => throw const FormatException('invalid json'),
-    };
+  const IpInfo({required this.ip, required this.countryCode});
+
+  static IpInfo fromCloudflareTrace(String traceText) {
+    // Cloudflare trace格式示例:
+    // fl=...
+    // h=...
+    // ip=1.2.3.4
+    // ts=...
+    // visit_scheme=https
+    // uag=...
+    // colo=...
+    // sliver=none
+    // http=http/2
+    // loc=US
+    // tls=TLSv1.3
+    // sni=plaintext
+    // warp=off
+    // gateway=off
+    // rbi=off
+    // kex=X25519
+
+    final lines = traceText.split('\n');
+    String? ip;
+    String? countryCode;
+
+    for (final line in lines) {
+      final parts = line.split('=');
+      if (parts.length == 2) {
+        final key = parts[0].trim();
+        final value = parts[1].trim();
+
+        if (key == 'ip') {
+          ip = value;
+        } else if (key == 'loc') {
+          countryCode = value;
+        }
+      }
+    }
+
+    if (ip != null && countryCode != null) {
+      return IpInfo(ip: ip, countryCode: countryCode);
+    }
+
+    throw const FormatException('invalid cloudflare trace format');
   }
 
-  static IpInfo fromIpApiCoJson(Map<String, dynamic> json) {
-    return switch (json) {
-      {'ip': final String ip, 'country_code': final String countryCode} =>
-        IpInfo(ip: ip, countryCode: countryCode),
-      _ => throw const FormatException('invalid json'),
-    };
+  IpInfo copyWith({String? ip, String? countryCode}) {
+    return IpInfo(
+      ip: ip ?? this.ip,
+      countryCode: countryCode ?? this.countryCode,
+    );
   }
 
-  static IpInfo fromIpSbJson(Map<String, dynamic> json) {
-    return switch (json) {
-      {'ip': final String ip, 'country_code': final String countryCode} =>
-        IpInfo(ip: ip, countryCode: countryCode),
-      _ => throw const FormatException('invalid json'),
-    };
-  }
-
-  static IpInfo fromIpWhoIsJson(Map<String, dynamic> json) {
-    return switch (json) {
-      {'ip': final String ip, 'country_code': final String countryCode} =>
-        IpInfo(ip: ip, countryCode: countryCode),
-      _ => throw const FormatException('invalid json'),
-    };
-  }
-
-  static IpInfo fromMyIpJson(Map<String, dynamic> json) {
-    return switch (json) {
-      {'ip': final String ip, 'cc': final String countryCode} => IpInfo(
-        ip: ip,
-        countryCode: countryCode,
-      ),
-      _ => throw const FormatException('invalid json'),
-    };
-  }
-
-  static IpInfo fromIpAPIJson(Map<String, dynamic> json) {
-    return switch (json) {
-      {'query': final String ip, 'countryCode': final String countryCode} =>
-        IpInfo(ip: ip, countryCode: countryCode),
-      _ => throw const FormatException('invalid json'),
-    };
-  }
-
-  static IpInfo fromIdentMeJson(Map<String, dynamic> json) {
-    return switch (json) {
-      {'ip': final String ip, 'cc': final String countryCode} => IpInfo(
-        ip: ip,
-        countryCode: countryCode,
-      ),
-      _ => throw const FormatException('invalid json'),
-    };
+  @override
+  String toString() {
+    return 'IpInfo{ip: $ip, countryCode: $countryCode}';
   }
 }
 
@@ -458,20 +500,32 @@ abstract class Field with _$Field {
   }) = _Field;
 }
 
+enum PopupMenuItemType { primary, danger }
+
 class PopupMenuItemData {
   const PopupMenuItemData({
     this.icon,
     required this.label,
-    this.onPressed,
-    this.danger = false,
-    this.subItems = const [],
+    required this.onPressed,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
-  final bool danger;
-  final List<PopupMenuItemData> subItems;
+}
+
+@freezed
+abstract class TextPainterParams with _$TextPainterParams {
+  const factory TextPainterParams({
+    required String? text,
+    required double? fontSize,
+    required double textScaleFactor,
+    @Default(double.infinity) double maxWidth,
+    int? maxLines,
+  }) = _TextPainterParams;
+
+  factory TextPainterParams.fromJson(Map<String, Object?> json) =>
+      _$TextPainterParamsFromJson(json);
 }
 
 class CloseWindowIntent extends Intent {
@@ -484,10 +538,11 @@ abstract class Result<T> with _$Result<T> {
     required T? data,
     required ResultType type,
     required String message,
+    @Default(false) bool needRestart,
   }) = _Result;
 
-  factory Result.success(T data) =>
-      Result(data: data, type: ResultType.success, message: '');
+  factory Result.success(T data, {bool needRestart = false}) =>
+      Result(data: data, type: ResultType.success, message: '', needRestart: needRestart);
 
   factory Result.error(String message) =>
       Result(data: null, type: ResultType.error, message: message);
@@ -502,97 +557,15 @@ extension ResultExt on Result {
 @freezed
 abstract class Script with _$Script {
   const factory Script({
-    required int id,
+    required String id,
     required String label,
-    required DateTime lastUpdateTime,
+    required String content,
+    String? url,
   }) = _Script;
 
+  factory Script.create({required String label, required String content, String? url}) {
+    return Script(id: utils.uuidV4, label: label, content: content, url: url);
+  }
+
   factory Script.fromJson(Map<String, Object?> json) => _$ScriptFromJson(json);
-
-  factory Script.create({required String label}) {
-    return Script(
-      id: snowflake.id,
-      label: label,
-      lastUpdateTime: DateTime.now(),
-    );
-  }
-}
-
-extension ScriptsExt on List<Script> {
-  Script? get(int? id) {
-    if (id == null) {
-      return null;
-    }
-    final index = indexWhere((script) => script.id == id);
-    if (index != -1) {
-      return this[index];
-    }
-    return null;
-  }
-}
-
-extension ScriptExt on Script {
-  String get fileName => '$id.js';
-
-  Future<String> get path async => await appPath.getScriptPath(id.toString());
-
-  Future<String?> get content async {
-    final file = File(await path);
-    if (await file.exists()) {
-      return file.readAsString();
-    }
-    return null;
-  }
-
-  Future<Script> save(String content) async {
-    final file = File(await path);
-    if (!await file.exists()) {
-      await file.create(recursive: true);
-    }
-    await file.writeAsString(content);
-    return copyWith(lastUpdateTime: DateTime.now());
-  }
-
-  Future<Script> saveWithPath(String copyPath) async {
-    final file = File(await path);
-    if (!await file.exists()) {
-      await file.create(recursive: true);
-    }
-    await File(copyPath).copy(copyPath);
-    return copyWith(lastUpdateTime: DateTime.now());
-  }
-}
-
-@freezed
-abstract class DelayState with _$DelayState {
-  const factory DelayState({required int delay, required bool group}) =
-      _DelayState;
-}
-
-extension DelayStateExt on DelayState {
-  int get priority {
-    if (delay > 0) return 0;
-    if (delay == 0) return 1;
-    return 2;
-  }
-
-  int compareTo(DelayState other) {
-    if (priority != other.priority) {
-      return priority.compareTo(other.priority);
-    }
-    if (delay != other.delay) {
-      return delay.compareTo(other.delay);
-    }
-    if (group && !group) return -1;
-    if (!group && group) return 1;
-    return 0;
-  }
-}
-
-@freezed
-abstract class UpdatingMessage with _$UpdatingMessage {
-  const factory UpdatingMessage({
-    required String label,
-    required String message,
-  }) = _UpdatingMessage;
 }

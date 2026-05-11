@@ -7,14 +7,18 @@ part of '../core.dart';
 // **************************************************************************
 
 _SetupParams _$SetupParamsFromJson(Map<String, dynamic> json) => _SetupParams(
+  config: json['config'] as Map<String, dynamic>,
   selectedMap: Map<String, String>.from(json['selected-map'] as Map),
   testUrl: json['test-url'] as String,
+  overrideTestUrl: json['override-test-url'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$SetupParamsToJson(_SetupParams instance) =>
     <String, dynamic>{
+      'config': instance.config,
       'selected-map': instance.selectedMap,
       'test-url': instance.testUrl,
+      'override-test-url': instance.overrideTestUrl,
     };
 
 _UpdateParams _$UpdateParamsFromJson(Map<String, dynamic> json) =>
@@ -76,39 +80,65 @@ const _$ExternalControllerStatusEnumMap = {
   ExternalControllerStatus.open: '127.0.0.1:9090',
 };
 
-_VpnOptions _$VpnOptionsFromJson(Map<String, dynamic> json) => _VpnOptions(
-  enable: json['enable'] as bool,
-  port: (json['port'] as num).toInt(),
-  ipv6: json['ipv6'] as bool,
-  dnsHijacking: json['dnsHijacking'] as bool,
-  accessControlProps: AccessControlProps.fromJson(
-    json['accessControlProps'] as Map<String, dynamic>,
-  ),
-  allowBypass: json['allowBypass'] as bool,
-  systemProxy: json['systemProxy'] as bool,
-  bypassDomain: (json['bypassDomain'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  stack: json['stack'] as String,
-  routeAddress:
-      (json['routeAddress'] as List<dynamic>?)
+_CoreState _$CoreStateFromJson(Map<String, dynamic> json) => _CoreState(
+  vpnProps: VpnProps.fromJson(json['vpn-props'] as Map<String, dynamic>),
+  onlyStatisticsProxy: json['only-statistics-proxy'] as bool,
+  currentProfileName: json['current-profile-name'] as String,
+  bypassDomain:
+      (json['bypass-domain'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList() ??
       const [],
 );
 
-Map<String, dynamic> _$VpnOptionsToJson(_VpnOptions instance) =>
+Map<String, dynamic> _$CoreStateToJson(_CoreState instance) =>
+    <String, dynamic>{
+      'vpn-props': instance.vpnProps,
+      'only-statistics-proxy': instance.onlyStatisticsProxy,
+      'current-profile-name': instance.currentProfileName,
+      'bypass-domain': instance.bypassDomain,
+    };
+
+_AndroidVpnOptions _$AndroidVpnOptionsFromJson(Map<String, dynamic> json) =>
+    _AndroidVpnOptions(
+      enable: json['enable'] as bool,
+      port: (json['port'] as num).toInt(),
+      accessControl: json['accessControl'] == null
+          ? null
+          : AccessControl.fromJson(
+              json['accessControl'] as Map<String, dynamic>,
+            ),
+      allowBypass: json['allowBypass'] as bool,
+      systemProxy: json['systemProxy'] as bool,
+      bypassDomain: (json['bypassDomain'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      ipv4Address: json['ipv4Address'] as String,
+      ipv6Address: json['ipv6Address'] as String,
+      routeAddress:
+          (json['routeAddress'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+      routeMode: json['routeMode'] as String? ?? 'config',
+      dnsServerAddress: json['dnsServerAddress'] as String,
+      dozeSuspend: json['dozeSuspend'] as bool? ?? false,
+    );
+
+Map<String, dynamic> _$AndroidVpnOptionsToJson(_AndroidVpnOptions instance) =>
     <String, dynamic>{
       'enable': instance.enable,
       'port': instance.port,
-      'ipv6': instance.ipv6,
-      'dnsHijacking': instance.dnsHijacking,
-      'accessControlProps': instance.accessControlProps,
+      'accessControl': instance.accessControl,
       'allowBypass': instance.allowBypass,
       'systemProxy': instance.systemProxy,
       'bypassDomain': instance.bypassDomain,
-      'stack': instance.stack,
+      'ipv4Address': instance.ipv4Address,
+      'ipv6Address': instance.ipv6Address,
       'routeAddress': instance.routeAddress,
+      'routeMode': instance.routeMode,
+      'dnsServerAddress': instance.dnsServerAddress,
+      'dozeSuspend': instance.dozeSuspend,
     };
 
 _InitParams _$InitParamsFromJson(Map<String, dynamic> json) => _InitParams(
@@ -147,23 +177,22 @@ Map<String, dynamic> _$UpdateGeoDataParamsToJson(
   'geo-name': instance.geoName,
 };
 
-_CoreEvent _$CoreEventFromJson(Map<String, dynamic> json) => _CoreEvent(
-  type: $enumDecode(_$CoreEventTypeEnumMap, json['type']),
+_AppMessage _$AppMessageFromJson(Map<String, dynamic> json) => _AppMessage(
+  type: $enumDecode(_$AppMessageTypeEnumMap, json['type']),
   data: json['data'],
 );
 
-Map<String, dynamic> _$CoreEventToJson(_CoreEvent instance) =>
+Map<String, dynamic> _$AppMessageToJson(_AppMessage instance) =>
     <String, dynamic>{
-      'type': _$CoreEventTypeEnumMap[instance.type]!,
+      'type': _$AppMessageTypeEnumMap[instance.type]!,
       'data': instance.data,
     };
 
-const _$CoreEventTypeEnumMap = {
-  CoreEventType.log: 'log',
-  CoreEventType.delay: 'delay',
-  CoreEventType.request: 'request',
-  CoreEventType.loaded: 'loaded',
-  CoreEventType.crash: 'crash',
+const _$AppMessageTypeEnumMap = {
+  AppMessageType.log: 'log',
+  AppMessageType.delay: 'delay',
+  AppMessageType.request: 'request',
+  AppMessageType.loaded: 'loaded',
 };
 
 _InvokeMessage _$InvokeMessageFromJson(Map<String, dynamic> json) =>
@@ -230,6 +259,7 @@ _ExternalProvider _$ExternalProviderFromJson(Map<String, dynamic> json) =>
       subscriptionInfo: subscriptionInfoFormCore(
         json['subscription-info'] as Map<String, Object?>?,
       ),
+      isUpdating: json['isUpdating'] as bool? ?? false,
       vehicleType: json['vehicle-type'] as String,
       updateAt: DateTime.parse(json['update-at'] as String),
     );
@@ -241,6 +271,7 @@ Map<String, dynamic> _$ExternalProviderToJson(_ExternalProvider instance) =>
       'path': instance.path,
       'count': instance.count,
       'subscription-info': instance.subscriptionInfo,
+      'isUpdating': instance.isUpdating,
       'vehicle-type': instance.vehicleType,
       'update-at': instance.updateAt.toIso8601String(),
     };
@@ -289,7 +320,8 @@ const _$ActionMethodEnumMap = {
   ActionMethod.getMemory: 'getMemory',
   ActionMethod.crash: 'crash',
   ActionMethod.setupConfig: 'setupConfig',
-  ActionMethod.deleteFile: 'deleteFile',
+  ActionMethod.flushFakeIP: 'flushFakeIP',
+  ActionMethod.flushDnsCache: 'flushDnsCache',
   ActionMethod.setState: 'setState',
   ActionMethod.startTun: 'startTun',
   ActionMethod.stopTun: 'stopTun',
@@ -298,14 +330,6 @@ const _$ActionMethodEnumMap = {
   ActionMethod.getAndroidVpnOptions: 'getAndroidVpnOptions',
   ActionMethod.getCurrentProfileName: 'getCurrentProfileName',
 };
-
-_ProxiesData _$ProxiesDataFromJson(Map<String, dynamic> json) => _ProxiesData(
-  proxies: json['proxies'] as Map<String, dynamic>,
-  all: (json['all'] as List<dynamic>).map((e) => e as String).toList(),
-);
-
-Map<String, dynamic> _$ProxiesDataToJson(_ProxiesData instance) =>
-    <String, dynamic>{'proxies': instance.proxies, 'all': instance.all};
 
 _ActionResult _$ActionResultFromJson(Map<String, dynamic> json) =>
     _ActionResult(

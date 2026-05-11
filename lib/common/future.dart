@@ -3,37 +3,42 @@ import 'dart:ui';
 
 import 'package:meow_clash/common/common.dart';
 
-extension FutureExt<T> on Future<T> {
-  Future<T> withTimeout({
+extension CompleterExt<T> on Completer<T> {
+  Future<T> safeFuture({
     Duration? timeout,
-    String? tag,
     VoidCallback? onLast,
     FutureOr<T> Function()? onTimeout,
+    required String functionName,
   }) {
-    final realTimeout = timeout ?? const Duration(minutes: 3);
+    final realTimeout = timeout ?? const Duration(seconds: 30);
     Timer(realTimeout + commonDuration, () {
       if (onLast != null) {
         onLast();
       }
     });
-    return this.timeout(
-      realTimeout,
-      onTimeout: () async {
-        if (onTimeout != null) {
-          return onTimeout();
-        } else {
-          throw TimeoutException('${tag ?? runtimeType} timeout');
-        }
-      },
+    return future.withTimeout(
+      timeout: realTimeout,
+      functionName: functionName,
+      onTimeout: onTimeout,
     );
   }
 }
 
-extension CompleterExt<T> on Completer<T> {
-  void safeCompleter(T value) {
-    if (isCompleted) {
-      return;
-    }
-    complete(value);
+extension FutureExt<T> on Future<T> {
+  Future<T> withTimeout({
+    required Duration timeout,
+    required String functionName,
+    FutureOr<T> Function()? onTimeout,
+  }) {
+    return this.timeout(
+      timeout,
+      onTimeout: () async {
+        if (onTimeout != null) {
+          return onTimeout();
+        } else {
+          throw TimeoutException('$functionName timeout');
+        }
+      },
+    );
   }
 }

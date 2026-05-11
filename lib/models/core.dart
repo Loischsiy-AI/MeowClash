@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_annotation_target
+
 import 'package:meow_clash/enum/enum.dart';
 import 'package:meow_clash/models/models.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -5,16 +7,43 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'generated/core.freezed.dart';
 part 'generated/core.g.dart';
 
+abstract mixin class AppMessageListener {
+  void onLog(Log log) {}
+
+  void onDelay(Delay delay) {}
+
+  void onRequest(TrackerInfo connection) {}
+
+  void onLoaded(String providerName) {}
+}
+
+// abstract mixin class ServiceMessageListener {
+//   onProtect(Fd fd) {}
+//
+//   onProcess(ProcessData process) {}
+// }
+
 @freezed
 abstract class SetupParams with _$SetupParams {
   const factory SetupParams({
+    @JsonKey(name: 'config') required Map<String, dynamic> config,
     @JsonKey(name: 'selected-map') required Map<String, String> selectedMap,
     @JsonKey(name: 'test-url') required String testUrl,
+    @JsonKey(name: 'override-test-url') @Default(true) bool overrideTestUrl,
   }) = _SetupParams;
 
   factory SetupParams.fromJson(Map<String, dynamic> json) =>
       _$SetupParamsFromJson(json);
 }
+
+// extension SetupParamsExt on SetupParams {
+//   Map<String, dynamic> get json {
+//     final json = Map<String, dynamic>.from(config);
+//     json["selected-map"] = selectedMap;
+//     json["test-url"] = testUrl;
+//     return json;
+//   }
+// }
 
 @freezed
 abstract class UpdateParams with _$UpdateParams {
@@ -38,22 +67,37 @@ abstract class UpdateParams with _$UpdateParams {
 }
 
 @freezed
-abstract class VpnOptions with _$VpnOptions {
-  const factory VpnOptions({
+abstract class CoreState with _$CoreState {
+  const factory CoreState({
+    @JsonKey(name: 'vpn-props') required VpnProps vpnProps,
+    @JsonKey(name: 'only-statistics-proxy') required bool onlyStatisticsProxy,
+    @JsonKey(name: 'current-profile-name') required String currentProfileName,
+    @JsonKey(name: 'bypass-domain') @Default([]) List<String> bypassDomain,
+  }) = _CoreState;
+
+  factory CoreState.fromJson(Map<String, Object?> json) =>
+      _$CoreStateFromJson(json);
+}
+
+@freezed
+abstract class AndroidVpnOptions with _$AndroidVpnOptions {
+  const factory AndroidVpnOptions({
     required bool enable,
     required int port,
-    required bool ipv6,
-    required bool dnsHijacking,
-    required AccessControlProps accessControlProps,
+    required AccessControl? accessControl,
     required bool allowBypass,
     required bool systemProxy,
     required List<String> bypassDomain,
-    required String stack,
+    required String ipv4Address,
+    required String ipv6Address,
     @Default([]) List<String> routeAddress,
-  }) = _VpnOptions;
+    @Default('config') String routeMode,
+    required String dnsServerAddress,
+    @Default(false) bool dozeSuspend,
+  }) = _AndroidVpnOptions;
 
-  factory VpnOptions.fromJson(Map<String, Object?> json) =>
-      _$VpnOptionsFromJson(json);
+  factory AndroidVpnOptions.fromJson(Map<String, Object?> json) =>
+      _$AndroidVpnOptionsFromJson(json);
 }
 
 @freezed
@@ -90,12 +134,12 @@ abstract class UpdateGeoDataParams with _$UpdateGeoDataParams {
 }
 
 @freezed
-abstract class CoreEvent with _$CoreEvent {
-  const factory CoreEvent({required CoreEventType type, dynamic data}) =
-      _CoreEvent;
+abstract class AppMessage with _$AppMessage {
+  const factory AppMessage({required AppMessageType type, dynamic data}) =
+      _AppMessage;
 
-  factory CoreEvent.fromJson(Map<String, Object?> json) =>
-      _$CoreEventFromJson(json);
+  factory AppMessage.fromJson(Map<String, Object?> json) =>
+      _$AppMessageFromJson(json);
 }
 
 @freezed
@@ -121,6 +165,27 @@ abstract class Now with _$Now {
 
   factory Now.fromJson(Map<String, Object?> json) => _$NowFromJson(json);
 }
+
+// @freezed
+// class ProcessData with _$ProcessData {
+//   const factory ProcessData({
+//     required String id,
+//     required Metadata metadata,
+//   }) = _ProcessData;
+//
+//   factory ProcessData.fromJson(Map<String, Object?> json) =>
+//       _$ProcessDataFromJson(json);
+// }
+//
+// @freezed
+// class Fd with _$Fd {
+//   const factory Fd({
+//     required String id,
+//     required int value,
+//   }) = _Fd;
+//
+//   factory Fd.fromJson(Map<String, Object?> json) => _$FdFromJson(json);
+// }
 
 @freezed
 abstract class ProviderSubscriptionInfo with _$ProviderSubscriptionInfo {
@@ -154,16 +219,13 @@ abstract class ExternalProvider with _$ExternalProvider {
     required int count,
     @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore)
     SubscriptionInfo? subscriptionInfo,
+    @Default(false) bool isUpdating,
     @JsonKey(name: 'vehicle-type') required String vehicleType,
     @JsonKey(name: 'update-at') required DateTime updateAt,
   }) = _ExternalProvider;
 
   factory ExternalProvider.fromJson(Map<String, Object?> json) =>
       _$ExternalProviderFromJson(json);
-}
-
-extension ExternalProviderExt on ExternalProvider {
-  String get updatingKey => 'provider_$name';
 }
 
 @freezed
@@ -175,17 +237,6 @@ abstract class Action with _$Action {
   }) = _Action;
 
   factory Action.fromJson(Map<String, Object?> json) => _$ActionFromJson(json);
-}
-
-@freezed
-abstract class ProxiesData with _$ProxiesData {
-  const factory ProxiesData({
-    required Map<String, dynamic> proxies,
-    required List<String> all,
-  }) = _ProxiesData;
-
-  factory ProxiesData.fromJson(Map<String, Object?> json) =>
-      _$ProxiesDataFromJson(json);
 }
 
 @freezed
@@ -206,7 +257,7 @@ extension ActionResultExt on ActionResult {
     if (code == ResultType.success) {
       return Result.success(data);
     } else {
-      return Result.error('$data');
+      return Result.error(data);
     }
   }
 }

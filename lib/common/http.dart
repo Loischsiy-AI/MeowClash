@@ -1,16 +1,15 @@
 import 'dart:io';
 
 import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/controller.dart';
+import 'package:meow_clash/state.dart';
 
-class FlClashHttpOverrides extends HttpOverrides {
+class MeowClashHttpOverrides extends HttpOverrides {
   static String handleFindProxy(Uri url) {
     if ([localhost].contains(url.host)) {
       return 'DIRECT';
     }
-    final port = appController.config.patchClashConfig.mixedPort;
-    final isStart = appController.isStart;
-    commonPrint.log('find $url proxy:$isStart');
+    final port = globalState.config.patchClashConfig.mixedPort;
+    final isStart = globalState.appState.runTime != null;
     if (!isStart) return 'DIRECT';
     return 'PROXY localhost:$port';
   }
