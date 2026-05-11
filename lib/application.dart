@@ -64,15 +64,19 @@ class ApplicationState extends ConsumerState<Application>
   }
 
   Future<void> _initApp() async {
+    debugPrint('=== _initApp: start ===');
     final currentContext = globalState.navigatorKey.currentContext;
     if (currentContext != null && currentContext != context) {
       globalState.appController = AppController(currentContext, ref);
     }
+    debugPrint('=== _initApp: calling appController.init ===');
     await globalState.appController.init();
+    debugPrint('=== _initApp: appController.init done ===');
     globalState.appController.initLink();
     if (system.isAndroid) {
       app.initShortcuts();
     }
+    debugPrint('=== _initApp: done ===');
   }
 
   @override
@@ -168,6 +172,7 @@ class ApplicationState extends ConsumerState<Application>
 
   @override
   Widget build(context) {
+    debugPrint('=== Application.build ===');
     return _buildPlatformState(
       _buildState(
         Consumer(
