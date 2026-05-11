@@ -76,6 +76,7 @@ jobs:
       - name: Get Flutter Dependency
         run: |
           flutter --version
+          flutter clean
           flutter pub get
 
       - name: Build
@@ -132,6 +133,7 @@ jobs:
       - name: Get Flutter Dependency
         run: |
           flutter --version
+          flutter clean
           flutter pub get
 
       - name: Build
@@ -176,6 +178,7 @@ jobs:
       - name: Get Flutter Dependency
         run: |
           flutter --version
+          flutter clean
           flutter pub get
 
       - name: Build
@@ -224,6 +227,7 @@ jobs:
       - name: Get Flutter Dependency
         run: |
           flutter --version
+          flutter clean
           flutter pub get
 
       - name: Build
@@ -272,6 +276,7 @@ jobs:
       - name: Get Flutter Dependency
         run: |
           flutter --version
+          flutter clean
           flutter pub get
 
       - name: Build
@@ -320,6 +325,7 @@ jobs:
       - name: Get Flutter Dependency
         run: |
           flutter --version
+          flutter clean
           flutter pub get
 
       - name: Build
