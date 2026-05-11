@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import 'package:meow_clash/l10n/l10n.dart';
 
 extension AppLocalizationsExt on AppLocalizations {
