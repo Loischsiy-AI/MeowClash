@@ -213,11 +213,21 @@ class Build {
       } else {
         env['CGO_ENABLED'] = '0';
       }
+      final buildTags = 'with_gvisor';
+
+      await exec(
+        ['go', 'mod', 'tidy'],
+        name: 'go mod tidy',
+        environment: env,
+        workingDirectory: _coreDir,
+      );
+
       final execLines = [
         'go',
         'build',
+        '-trimpath',
         '-ldflags=-w -s',
-        '-tags=$tags',
+        '-tags=$buildTags',
         if (isLib) '-buildmode=c-shared',
         '-o',
         realOutPath,
