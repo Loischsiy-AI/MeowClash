@@ -1,5 +1,5 @@
 name: meow_clash
-description: MeowClash - a multi-platform proxy client based on ClashMeta, fork of FlClash
+description: MeowClash - a multi-platform proxy client based on ClashMeta, fork of MeowClash
 publish_to: 'none'
 version: 0.8.92+2026020201
 environment:

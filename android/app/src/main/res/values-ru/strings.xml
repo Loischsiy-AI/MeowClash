@@ -1,0 +1,7 @@
+<resources>
+    <string name="meow_clash">MeowClash</string>
+    <string name="core_connected">Подключено</string>
+    <string name="service_running">Сервис запущен</string>
+    <string name="core_suspended">Приостановлено</string>
+    <string name="smart_auto_stop_service_running">Автостоп запущен</string>
+</resources>
