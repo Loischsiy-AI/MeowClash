@@ -18,11 +18,14 @@ class UiManager {
   }
 
   Future<void> initializeUI() async {
+    debugPrint('=== initializeUI: start ===');
     try {
       final uiPath = await appPath.uiPath;
+      debugPrint('=== initializeUI: uiPath=$uiPath ===');
       final uiDir = Directory(uiPath);
       final versionFile = File(join(uiPath, '.ui_version'));
       final currentVersion = globalState.packageInfo.version;
+      debugPrint('=== initializeUI: currentVersion=$currentVersion ===');
 
       if (await uiDir.exists()) {
         if (await versionFile.exists()) {
