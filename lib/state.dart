@@ -81,6 +81,7 @@ class GlobalState {
   }
 
   Future<void> initApp(int version) async {
+    debugPrint('=== initApp: start ===');
     isExiting = false;
     coreSHA256 = const String.fromEnvironment('CORE_SHA256');
     isPre = const String.fromEnvironment('APP_ENV') != 'stable';
@@ -94,8 +95,12 @@ class GlobalState {
       totalTraffic: Traffic(),
       systemUiOverlayStyle: const SystemUiOverlayStyle(),
     );
+    debugPrint('=== initApp: calling _initDynamicColor ===');
     await _initDynamicColor();
+    debugPrint('=== initApp: _initDynamicColor done ===');
+    debugPrint('=== initApp: calling init ===');
     await init();
+    debugPrint('=== initApp: init done ===');
   }
 
   Future<void> _initDynamicColor() async {
