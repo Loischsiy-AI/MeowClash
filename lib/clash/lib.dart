@@ -30,9 +30,9 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
   }
 
   Future<void> _initService() async {
-    debugPrint('=== ClashLib._initService: start ===');
+    commonPrint.log('ClashLib._initService: start ===');
     _registerMainPort(receiverPort.sendPort);
-    debugPrint('=== ClashLib._initService: main port registered ===');
+    commonPrint.log('ClashLib._initService: main port registered ===');
     receiverPort.listen((message) {
       commonPrint.log('[ClashLib]  received message type=${message.runtimeType} ===');
       if (message is SendPort) {
@@ -48,17 +48,17 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
       }
     });
     final alreadyRunning = await service?.isServiceEngineRunning() ?? false;
-    debugPrint('=== ClashLib._initService: alreadyRunning=$alreadyRunning ===');
+    commonPrint.log('ClashLib._initService: alreadyRunning=$alreadyRunning ===');
     if (alreadyRunning) {
       await service?.reconnectIpc();
     } else {
       await service?.destroy();
-      debugPrint('=== ClashLib._initService: calling service.init() ===');
+      commonPrint.log('ClashLib._initService: calling service.init() ===');
       await service?.init();
-      debugPrint('=== ClashLib._initService: service.init() done ===');
+      commonPrint.log('ClashLib._initService: service.init() done ===');
     }
     await _waitForIpc();
-    debugPrint('=== ClashLib._initService: done ===');
+    commonPrint.log('ClashLib._initService: done ===');
   }
 
   Future<void> _waitForIpc() async {
