@@ -195,7 +195,7 @@ object GlobalState {
                 FlutterInjector.instance().flutterLoader().findAppBundlePath(),
                 "_service"
             )
-            val defaultArgs = if (flutterEngine == null && !isCurrentlyStopping()) listOf("quick") else null
+            val defaultArgs = if (!isCurrentlyStopping()) listOf("quick") else null
             val args = flags ?: defaultArgs
             serviceEngine?.dartExecutor?.executeDartEntrypoint(vpnService, args)
         }
