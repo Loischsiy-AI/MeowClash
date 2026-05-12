@@ -68,9 +68,12 @@ Future<void> _runApp(int version) async {
 
 @pragma('vm:entry-point')
 Future<void> _service(List<String> flags) async {
+  debugPrint('=== _service: start, flags=$flags ===');
   globalState.isService = true;
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('=== _service: calling globalState.init() ===');
   await globalState.init();
+  debugPrint('=== _service: globalState.init() done ===');
 
   {
     final quickStart = flags.contains('quick');
@@ -163,7 +166,9 @@ Future<void> _service(List<String> flags) async {
 }
 
 void _handleMainIpc(ClashLibHandler clashLibHandler) {
+  debugPrint('=== _handleMainIpc: start ===');
   final sendPort = IsolateNameServer.lookupPortByName(mainIsolate);
+  debugPrint('=== _handleMainIpc: mainIsolate port = $sendPort ===');
   if (sendPort == null) {
     commonPrint.log('Service: mainIsolate sendPort not found, IPC unavailable');
     return;
