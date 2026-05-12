@@ -44,11 +44,10 @@ app.*.map.json
 #AI generated
 CLAUDE.md
 /.claude
-.windsurf
 .opencode
 .agents
 
-Example_Bettbox
+Example*
 
 # Android Studio will place build artifacts here
 /android/app/debug
