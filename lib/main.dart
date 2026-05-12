@@ -33,15 +33,34 @@ Future<void> main() async {
   debugPrint('=== Calling preload... ===');
   await clashCore.preload();
   debugPrint('=== preload done ===');
-  debugPrint('=== Calling initApp... ===');
-  await globalState.initApp(version);
-debugPrint('=== initApp done ===');
-  unawaited(uiManager.initializeUI().then((_) => debugPrint('=== initializeUI: done ==='))
-      .catchError((e) => commonPrint.log('Failed to initialize UI: $e')));
 
-  debugPrint('=== Calling _runApp... ===');
+  globalState.config = Config(themeProps: defaultThemeProps);
+  globalState.accentColor = const Color(defaultPrimaryColor);
+  globalState.appState = AppState(
+    brightness: WidgetsBinding.instance.platformDispatcher.platformBrightness,
+    version: version,
+    viewSize: Size.zero,
+    requests: FixedList(maxLength),
+    logs: FixedList(maxLength),
+    traffics: FixedList(30),
+    totalTraffic: Traffic(),
+    systemUiOverlayStyle: const SystemUiOverlayStyle(),
+  );
+
+  // Run all slow init in background
+  unawaited(Future(() async {
+    try {
+      globalState.packageInfo = await PackageInfo.fromPlatform().timeout(const Duration(seconds: 2));
+    } catch (_) {}
+    await globalState.initAppBackground();
+    try {
+      await uiManager.initializeUI();
+    } catch (e) {
+      debugPrint('Failed to initialize UI: $e');
+    }
+  }));
+
   await _runApp(version);
-  debugPrint('=== _runApp done ===');
 }
 
 Future<void> _runApp(int version) async {
