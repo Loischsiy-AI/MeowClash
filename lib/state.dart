@@ -105,16 +105,11 @@ class GlobalState {
 
   Future<void> _initDynamicColor() async {
     try {
-      debugPrint('=== _initDynamicColor: getCorePalette ===');
-      corePalette = await DynamicColorPlugin.getCorePalette().timeout(const Duration(seconds: 3));
-      debugPrint('=== _initDynamicColor: corePalette=$corePalette ===');
-      accentColor =
-          await DynamicColorPlugin.getAccentColor().timeout(const Duration(seconds: 3)) ??
-          Color(defaultPrimaryColor);
-      debugPrint('=== _initDynamicColor: accentColor=$accentColor ===');
-    } catch (e) {
-      debugPrint('=== _initDynamicColor: error=$e ===');
-    }
+      corePalette = await DynamicColorPlugin.getCorePalette().timeout(const Duration(seconds: 1));
+    } catch (_) {}
+    try {
+      accentColor = await DynamicColorPlugin.getAccentColor().timeout(const Duration(seconds: 1));
+    } catch (_) {}
   }
 
   Future<void> init() async {
