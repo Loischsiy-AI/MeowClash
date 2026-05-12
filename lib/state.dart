@@ -80,10 +80,31 @@ class GlobalState {
     return _instance!;
   }
 
-  Future<void> initAppBackground() async {
+  Future<void> initApp(int version) async {
+    debugPrint('=== initApp: start ===');
+    isExiting = false;
+    coreSHA256 = const String.fromEnvironment('CORE_SHA256');
+    isPre = const String.fromEnvironment('APP_ENV') != 'stable';
+    config = Config(themeProps: defaultThemeProps);
+    accentColor = const Color(defaultPrimaryColor);
+    appState = AppState(
+      brightness: WidgetsBinding.instance.platformDispatcher.platformBrightness,
+      version: version,
+      viewSize: Size.zero,
+      requests: FixedList(maxLength),
+      logs: FixedList(maxLength),
+      traffics: FixedList(30),
+      totalTraffic: Traffic(),
+      systemUiOverlayStyle: const SystemUiOverlayStyle(),
+    );
+    try {
+      packageInfo = await PackageInfo.fromPlatform().timeout(const Duration(seconds: 2));
+    } catch (_) {}
+    _initDynamicColor();
     try {
       await init().timeout(const Duration(seconds: 5));
     } catch (_) {}
+    debugPrint('=== initApp done ===');
   }
 
   Future<void> _initDynamicColor() async {

@@ -34,30 +34,10 @@ Future<void> main() async {
   await clashCore.preload();
   debugPrint('=== preload done ===');
 
-  globalState.config = Config(themeProps: defaultThemeProps);
-  globalState.accentColor = const Color(defaultPrimaryColor);
-  globalState.appState = AppState(
-    brightness: WidgetsBinding.instance.platformDispatcher.platformBrightness,
-    version: version,
-    viewSize: Size.zero,
-    requests: FixedList(maxLength),
-    logs: FixedList(maxLength),
-    traffics: FixedList(30),
-    totalTraffic: Traffic(),
-    systemUiOverlayStyle: const SystemUiOverlayStyle(),
-  );
-
-  // Run all slow init in background
+  // Init in background, don't block UI
   unawaited(Future(() async {
-    try {
-      globalState.packageInfo = await PackageInfo.fromPlatform().timeout(const Duration(seconds: 2));
-    } catch (_) {}
-    await globalState.initAppBackground();
-    try {
-      await uiManager.initializeUI();
-    } catch (e) {
-      debugPrint('Failed to initialize UI: $e');
-    }
+    await globalState.initApp(version);
+    unawaited(uiManager.initializeUI().catchError((e) => debugPrint('UI init error: $e')));
   }));
 
   await _runApp(version);
