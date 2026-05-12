@@ -95,23 +95,23 @@ class GlobalState {
       totalTraffic: Traffic(),
       systemUiOverlayStyle: const SystemUiOverlayStyle(),
     );
-    debugPrint('=== initApp: calling _initDynamicColor ===');
-    await _initDynamicColor();
-    debugPrint('=== initApp: _initDynamicColor done ===');
-    debugPrint('=== initApp: calling init ===');
-    await init();
-    debugPrint('=== initApp: init done ===');
+    _initDynamicColor();
+    unawaited(init().then((_) => debugPrint('=== initApp: background init done ===')));
+    debugPrint('=== initApp done ===');
   }
 
   Future<void> _initDynamicColor() async {
-    try {
-      corePalette = await DynamicColorPlugin.getCorePalette().timeout(const Duration(seconds: 1));
-    } catch (_) {}
-    try {
-      accentColor = await DynamicColorPlugin.getAccentColor().timeout(const Duration(seconds: 1)) ?? const Color(defaultPrimaryColor);
-    } catch (_) {
-      accentColor = const Color(defaultPrimaryColor);
-    }
+    // Non-blocking - run in background
+    unawaited(Future(() async {
+      try {
+        corePalette = await DynamicColorPlugin.getCorePalette().timeout(const Duration(seconds: 1));
+      } catch (_) {}
+      try {
+        accentColor = await DynamicColorPlugin.getAccentColor().timeout(const Duration(seconds: 1)) ?? const Color(defaultPrimaryColor);
+      } catch (_) {
+        accentColor = const Color(defaultPrimaryColor);
+      }
+    }));
   }
 
   Future<void> init() async {
