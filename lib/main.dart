@@ -34,13 +34,9 @@ Future<void> main() async {
   debugPrint('=== preload done ===');
   debugPrint('=== Calling initApp... ===');
   await globalState.initApp(version);
-  debugPrint('=== initApp done ===');
-
-  try {
-    await uiManager.initializeUI();
-  } catch (e) {
-    commonPrint.log('Failed to initialize UI: $e');
-  }
+debugPrint('=== initApp done ===');
+  unawaited(uiManager.initializeUI().then((_) => debugPrint('=== initializeUI: done ==='))
+      .catchError((e) => commonPrint.log('Failed to initialize UI: $e')));
 
   debugPrint('=== Calling _runApp... ===');
   await _runApp(version);

@@ -8,7 +8,6 @@ import com.follow.clash.plugins.VpnPlugin
 import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.plugins.GeneratedPluginRegistrant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -189,7 +188,6 @@ object GlobalState {
                 plugins.add(AppPlugin())
                 plugins.add(TilePlugin())
                 plugins.add(ServicePlugin())
-                GeneratedPluginRegistrant.registerWith(this)
             }
             val vpnService = DartExecutor.DartEntrypoint(
                 FlutterInjector.instance().flutterLoader().findAppBundlePath(),
