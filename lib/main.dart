@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:ui' as ui;
 import 'dart:ui';
 
+import 'package:flutter/services.dart';
 import 'package:meow_clash/plugins/app.dart';
 import 'package:meow_clash/plugins/tile.dart';
 import 'package:meow_clash/plugins/vpn.dart';
@@ -35,12 +37,11 @@ Future<void> main() async {
   debugPrint('=== preload done ===');
 
   // Set defaults so _runApp doesn't crash on late fields
-  globalState.config = Config(themeProps: defaultThemeProps);
   globalState.accentColor = const Color(defaultPrimaryColor);
   globalState.appState = AppState(
     brightness: WidgetsBinding.instance.platformDispatcher.platformBrightness,
     version: version,
-    viewSize: Size.zero,
+    viewSize: ui.Size.zero,
     requests: FixedList(maxLength),
     logs: FixedList(maxLength),
     traffics: FixedList(30),
