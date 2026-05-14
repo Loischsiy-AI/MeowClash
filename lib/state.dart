@@ -37,7 +37,7 @@ class GlobalState {
   bool isExiting = false;
   Timer? timer;
   Timer? groupsUpdateTimer;
-  late Config config;
+  Config config = Config(themeProps: defaultThemeProps);
   late AppState appState;
   bool isPre = true;
   String? coreSHA256;
@@ -114,7 +114,6 @@ class GlobalState {
     try {
       config = await preferences.getConfig().timeout(const Duration(seconds: 2)) ?? Config(themeProps: defaultThemeProps);
     } catch (_) {}
-    config ??= Config(themeProps: defaultThemeProps);
     debugPrint('=== GlobalState.init: config done ===');
     await globalState.migrateOldData(config);
     debugPrint('=== GlobalState.init: migrate done ===');
