@@ -36,9 +36,9 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m7(count) => "${count} 項目が選択されています";
 
-  static String m8(label) => "${label}はURLである必要があります";
+  static String m8(days) => "サブスクリプションは${days}日後に期限切れになります";
 
-  static String m9(days) => "サブスクリプションは${days}日後に期限切れになります";
+  static String m9(label) => "${label}はURLである必要があります";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -77,6 +77,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "allowLan": MessageLookupByLibrary.simpleMessage("LANを許可"),
     "allowLanDesc": MessageLookupByLibrary.simpleMessage("LAN経由でのプロキシアクセスを許可"),
+    "announcement": MessageLookupByLibrary.simpleMessage("お知らせ"),
     "app": MessageLookupByLibrary.simpleMessage("アプリ"),
     "appAccessControl": MessageLookupByLibrary.simpleMessage("アプリアクセス制御"),
     "appDesc": MessageLookupByLibrary.simpleMessage("アプリ関連設定の処理"),
@@ -206,7 +207,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "expressiveScheme": MessageLookupByLibrary.simpleMessage("エクスプレッシブ"),
     "externalController": MessageLookupByLibrary.simpleMessage("外部コントローラー"),
     "externalControllerDesc": MessageLookupByLibrary.simpleMessage(
-      "有効化するとClashコアをAPIで制御可能",
+      "有効化するとClashコアをポート9090で制御可能",
     ),
     "externalLink": MessageLookupByLibrary.simpleMessage("外部リンク"),
     "externalResources": MessageLookupByLibrary.simpleMessage("外部リソース"),
@@ -408,6 +409,35 @@ class MessageLookup extends MessageLookupByLibrary {
         MessageLookupByLibrary.simpleMessage("有効な間隔形式を入力してください"),
     "profileAutoUpdateIntervalNullValidationDesc":
         MessageLookupByLibrary.simpleMessage("自動更新間隔を入力してください"),
+    "profileDecryptFailed": MessageLookupByLibrary.simpleMessage(
+      "サブスクリプションの復号に失敗しました",
+    ),
+    "profileDecryptIterationsInvalid": MessageLookupByLibrary.simpleMessage(
+      "反復回数は正の整数である必要があります",
+    ),
+    "profileDecryptPasswordRequired": MessageLookupByLibrary.simpleMessage(
+      "復号パスワードを入力してください",
+    ),
+    "profileDecryptSourceMissing": MessageLookupByLibrary.simpleMessage(
+      "復号できるサブスクリプションファイルがありません",
+    ),
+    "profileDecryptSuccess": MessageLookupByLibrary.simpleMessage(
+      "サブスクリプションを復号しました",
+    ),
+    "profileDecryption": MessageLookupByLibrary.simpleMessage("サブスクリプションの復号"),
+    "profileDecryptionAction": MessageLookupByLibrary.simpleMessage("復号"),
+    "profileDecryptionDesc": MessageLookupByLibrary.simpleMessage(
+      "パスワードを使って暗号化されたサブスクリプションファイルを復号化します（AES-256-CBC, PBKDF2HMAC-SHA256 で鍵を生成）。",
+    ),
+    "profileDecryptionIterations": MessageLookupByLibrary.simpleMessage(
+      "PBKDF2 反復回数",
+    ),
+    "profileDecryptionIterationsHelper": MessageLookupByLibrary.simpleMessage(
+      "暗号化時に使用した値と一致させてください（デフォルト 480000）",
+    ),
+    "profileDecryptionPassword": MessageLookupByLibrary.simpleMessage(
+      "復号パスワード",
+    ),
     "profileHasUpdate": MessageLookupByLibrary.simpleMessage(
       "プロファイルが変更されました。自動更新を無効化しますか？",
     ),
@@ -462,6 +492,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "remove": MessageLookupByLibrary.simpleMessage("削除"),
     "rename": MessageLookupByLibrary.simpleMessage("リネーム"),
+    "renew": MessageLookupByLibrary.simpleMessage("更新"),
     "requests": MessageLookupByLibrary.simpleMessage("リクエスト"),
     "requestsDesc": MessageLookupByLibrary.simpleMessage("最近のリクエスト記録を表示"),
     "reset": MessageLookupByLibrary.simpleMessage("リセット"),
@@ -485,6 +516,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "ruleName": MessageLookupByLibrary.simpleMessage("ルール名"),
     "ruleProviders": MessageLookupByLibrary.simpleMessage("ルールプロバイダー"),
     "ruleTarget": MessageLookupByLibrary.simpleMessage("ルール対象"),
+    "running": MessageLookupByLibrary.simpleMessage("実行中"),
     "save": MessageLookupByLibrary.simpleMessage("保存"),
     "saveChanges": MessageLookupByLibrary.simpleMessage("変更を保存しますか？"),
     "saveTip": MessageLookupByLibrary.simpleMessage("保存してもよろしいですか？"),
@@ -507,16 +539,25 @@ class MessageLookup extends MessageLookupByLibrary {
     "stackMode": MessageLookupByLibrary.simpleMessage("スタックモード"),
     "standard": MessageLookupByLibrary.simpleMessage("標準"),
     "start": MessageLookupByLibrary.simpleMessage("開始"),
-    "running": MessageLookupByLibrary.simpleMessage("実行中"),
     "startVpn": MessageLookupByLibrary.simpleMessage("VPNを開始中..."),
     "status": MessageLookupByLibrary.simpleMessage("ステータス"),
     "statusDesc": MessageLookupByLibrary.simpleMessage("無効時はシステムDNSを使用"),
     "stop": MessageLookupByLibrary.simpleMessage("停止"),
-    "stopped": MessageLookupByLibrary.simpleMessage("停止中"),
     "stopVpn": MessageLookupByLibrary.simpleMessage("VPNを停止中..."),
+    "stopped": MessageLookupByLibrary.simpleMessage("停止中"),
     "style": MessageLookupByLibrary.simpleMessage("スタイル"),
     "subRule": MessageLookupByLibrary.simpleMessage("サブルール"),
     "submit": MessageLookupByLibrary.simpleMessage("送信"),
+    "subscriptionExpired": MessageLookupByLibrary.simpleMessage(
+      "サブスクリプションが期限切れになりました",
+    ),
+    "subscriptionExpiresInDays": m8,
+    "subscriptionExpiresSoon": MessageLookupByLibrary.simpleMessage(
+      "サブスクリプションがまもなく期限切れ",
+    ),
+    "subscriptionExpiresToday": MessageLookupByLibrary.simpleMessage(
+      "サブスクリプションは本日期限切れになります",
+    ),
     "support": MessageLookupByLibrary.simpleMessage("サポート"),
     "sync": MessageLookupByLibrary.simpleMessage("同期"),
     "system": MessageLookupByLibrary.simpleMessage("システム"),
@@ -568,7 +609,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "upload": MessageLookupByLibrary.simpleMessage("アップロード"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("URL経由でプロファイルを取得"),
-    "urlTip": m8,
+    "urlTip": m9,
     "useHosts": MessageLookupByLibrary.simpleMessage("ホストを使用"),
     "useSystemHosts": MessageLookupByLibrary.simpleMessage("システムホストを使用"),
     "value": MessageLookupByLibrary.simpleMessage("値"),
@@ -586,17 +627,5 @@ class MessageLookup extends MessageLookupByLibrary {
     "whitelistMode": MessageLookupByLibrary.simpleMessage("ホワイトリストモード"),
     "years": MessageLookupByLibrary.simpleMessage("年"),
     "zh_CN": MessageLookupByLibrary.simpleMessage("簡体字中国語"),
-    "subscriptionExpiresSoon": MessageLookupByLibrary.simpleMessage(
-      "サブスクリプションがまもなく期限切れ",
-    ),
-    "subscriptionExpiresInDays": m9,
-    "subscriptionExpiresToday": MessageLookupByLibrary.simpleMessage(
-      "サブスクリプションは本日期限切れになります",
-    ),
-    "subscriptionExpired": MessageLookupByLibrary.simpleMessage(
-      "サブスクリプションが期限切れになりました",
-    ),
-    "renew": MessageLookupByLibrary.simpleMessage("更新"),
-    "announcement": MessageLookupByLibrary.simpleMessage("お知らせ"),
   };
 }

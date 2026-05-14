@@ -38,9 +38,9 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m7(count) => "${count} items have been selected";
 
-  static String m8(label) => "${label} must be a url";
+  static String m8(days) => "Your subscription expires in ${days} day(s)";
 
-  static String m9(days) => "Your subscription expires in ${days} day(s)";
+  static String m9(label) => "${label} must be a url";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -98,6 +98,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "allowLanDesc": MessageLookupByLibrary.simpleMessage(
       "Allow access proxy through the LAN",
     ),
+    "announcement": MessageLookupByLibrary.simpleMessage("Announcement"),
     "app": MessageLookupByLibrary.simpleMessage("App"),
     "appAccessControl": MessageLookupByLibrary.simpleMessage(
       "App access control",
@@ -277,7 +278,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "ExternalController",
     ),
     "externalControllerDesc": MessageLookupByLibrary.simpleMessage(
-      "Once enabled, the Clash kernel can be controlled via API",
+      "Once enabled, the Clash kernel can be controlled on port 9090",
     ),
     "externalLink": MessageLookupByLibrary.simpleMessage("External link"),
     "externalResources": MessageLookupByLibrary.simpleMessage(
@@ -548,6 +549,37 @@ class MessageLookup extends MessageLookupByLibrary {
         MessageLookupByLibrary.simpleMessage(
           "Please enter the auto update interval time",
         ),
+    "profileDecryptFailed": MessageLookupByLibrary.simpleMessage(
+      "Failed to decrypt subscription",
+    ),
+    "profileDecryptIterationsInvalid": MessageLookupByLibrary.simpleMessage(
+      "Iterations must be a positive integer",
+    ),
+    "profileDecryptPasswordRequired": MessageLookupByLibrary.simpleMessage(
+      "Please enter the decryption password",
+    ),
+    "profileDecryptSourceMissing": MessageLookupByLibrary.simpleMessage(
+      "No subscription file available to decrypt",
+    ),
+    "profileDecryptSuccess": MessageLookupByLibrary.simpleMessage(
+      "Subscription decrypted successfully",
+    ),
+    "profileDecryption": MessageLookupByLibrary.simpleMessage(
+      "Decrypt subscription",
+    ),
+    "profileDecryptionAction": MessageLookupByLibrary.simpleMessage("Decrypt"),
+    "profileDecryptionDesc": MessageLookupByLibrary.simpleMessage(
+      "Decrypt an encrypted subscription file (AES-256-CBC, key derived via PBKDF2HMAC-SHA256).",
+    ),
+    "profileDecryptionIterations": MessageLookupByLibrary.simpleMessage(
+      "PBKDF2 iterations",
+    ),
+    "profileDecryptionIterationsHelper": MessageLookupByLibrary.simpleMessage(
+      "Must match the value used during encryption (default 480000)",
+    ),
+    "profileDecryptionPassword": MessageLookupByLibrary.simpleMessage(
+      "Decryption password",
+    ),
     "profileHasUpdate": MessageLookupByLibrary.simpleMessage(
       "The profile has been modified. Do you want to disable auto update?",
     ),
@@ -619,6 +651,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "remove": MessageLookupByLibrary.simpleMessage("Remove"),
     "rename": MessageLookupByLibrary.simpleMessage("Rename"),
+    "renew": MessageLookupByLibrary.simpleMessage("Renew"),
     "requests": MessageLookupByLibrary.simpleMessage("Requests"),
     "requestsDesc": MessageLookupByLibrary.simpleMessage(
       "View recently request records",
@@ -648,6 +681,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "ruleName": MessageLookupByLibrary.simpleMessage("Rule name"),
     "ruleProviders": MessageLookupByLibrary.simpleMessage("Rule providers"),
     "ruleTarget": MessageLookupByLibrary.simpleMessage("Rule target"),
+    "running": MessageLookupByLibrary.simpleMessage("Running"),
     "save": MessageLookupByLibrary.simpleMessage("Save"),
     "saveChanges": MessageLookupByLibrary.simpleMessage(
       "Do you want to save the changes?",
@@ -688,20 +722,29 @@ class MessageLookup extends MessageLookupByLibrary {
     "stackMode": MessageLookupByLibrary.simpleMessage("Stack mode"),
     "standard": MessageLookupByLibrary.simpleMessage("Standard"),
     "start": MessageLookupByLibrary.simpleMessage("Start"),
-    "running": MessageLookupByLibrary.simpleMessage("Running"),
     "startVpn": MessageLookupByLibrary.simpleMessage("Starting VPN..."),
     "status": MessageLookupByLibrary.simpleMessage("Status"),
     "statusDesc": MessageLookupByLibrary.simpleMessage(
       "System DNS will be used when turned off",
     ),
     "stop": MessageLookupByLibrary.simpleMessage("Stop"),
-    "stopped": MessageLookupByLibrary.simpleMessage("Stopped"),
     "stopVpn": MessageLookupByLibrary.simpleMessage("Stopping VPN..."),
+    "stopped": MessageLookupByLibrary.simpleMessage("Stopped"),
     "style": MessageLookupByLibrary.simpleMessage("Style"),
     "subRule": MessageLookupByLibrary.simpleMessage("Sub rule"),
     "submit": MessageLookupByLibrary.simpleMessage("Submit"),
     "subscriptionEternal": MessageLookupByLibrary.simpleMessage(
       "Lifetime Subscription",
+    ),
+    "subscriptionExpired": MessageLookupByLibrary.simpleMessage(
+      "Your subscription has expired",
+    ),
+    "subscriptionExpiresInDays": m8,
+    "subscriptionExpiresSoon": MessageLookupByLibrary.simpleMessage(
+      "Subscription expires soon",
+    ),
+    "subscriptionExpiresToday": MessageLookupByLibrary.simpleMessage(
+      "Your subscription expires today",
     ),
     "subscriptionUnlimited": MessageLookupByLibrary.simpleMessage(
       "Lifetime Subscription",
@@ -775,7 +818,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "Obtain profile through URL",
     ),
-    "urlTip": m8,
+    "urlTip": m9,
     "useHosts": MessageLookupByLibrary.simpleMessage("Use hosts"),
     "useSystemHosts": MessageLookupByLibrary.simpleMessage("Use system hosts"),
     "value": MessageLookupByLibrary.simpleMessage("Value"),
@@ -799,17 +842,5 @@ class MessageLookup extends MessageLookupByLibrary {
     "whitelistMode": MessageLookupByLibrary.simpleMessage("Whitelist mode"),
     "years": MessageLookupByLibrary.simpleMessage("Years"),
     "zh_CN": MessageLookupByLibrary.simpleMessage("Simplified Chinese"),
-    "subscriptionExpiresSoon": MessageLookupByLibrary.simpleMessage(
-      "Subscription expires soon",
-    ),
-    "subscriptionExpiresInDays": m9,
-    "subscriptionExpiresToday": MessageLookupByLibrary.simpleMessage(
-      "Your subscription expires today",
-    ),
-    "subscriptionExpired": MessageLookupByLibrary.simpleMessage(
-      "Your subscription has expired",
-    ),
-    "renew": MessageLookupByLibrary.simpleMessage("Renew"),
-    "announcement": MessageLookupByLibrary.simpleMessage("Announcement"),
   };
 }

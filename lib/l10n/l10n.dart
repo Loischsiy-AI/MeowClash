@@ -744,6 +744,116 @@ class AppLocalizations {
     );
   }
 
+  /// `Decrypt subscription`
+  String get profileDecryption {
+    return Intl.message(
+      'Decrypt subscription',
+      name: 'profileDecryption',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Decrypt an encrypted subscription file (AES-256-CBC, key derived via PBKDF2HMAC-SHA256).`
+  String get profileDecryptionDesc {
+    return Intl.message(
+      'Decrypt an encrypted subscription file (AES-256-CBC, key derived via PBKDF2HMAC-SHA256).',
+      name: 'profileDecryptionDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Decryption password`
+  String get profileDecryptionPassword {
+    return Intl.message(
+      'Decryption password',
+      name: 'profileDecryptionPassword',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `PBKDF2 iterations`
+  String get profileDecryptionIterations {
+    return Intl.message(
+      'PBKDF2 iterations',
+      name: 'profileDecryptionIterations',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Must match the value used during encryption (default 480000)`
+  String get profileDecryptionIterationsHelper {
+    return Intl.message(
+      'Must match the value used during encryption (default 480000)',
+      name: 'profileDecryptionIterationsHelper',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Decrypt`
+  String get profileDecryptionAction {
+    return Intl.message(
+      'Decrypt',
+      name: 'profileDecryptionAction',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Please enter the decryption password`
+  String get profileDecryptPasswordRequired {
+    return Intl.message(
+      'Please enter the decryption password',
+      name: 'profileDecryptPasswordRequired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Iterations must be a positive integer`
+  String get profileDecryptIterationsInvalid {
+    return Intl.message(
+      'Iterations must be a positive integer',
+      name: 'profileDecryptIterationsInvalid',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No subscription file available to decrypt`
+  String get profileDecryptSourceMissing {
+    return Intl.message(
+      'No subscription file available to decrypt',
+      name: 'profileDecryptSourceMissing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Failed to decrypt subscription`
+  String get profileDecryptFailed {
+    return Intl.message(
+      'Failed to decrypt subscription',
+      name: 'profileDecryptFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Subscription decrypted successfully`
+  String get profileDecryptSuccess {
+    return Intl.message(
+      'Subscription decrypted successfully',
+      name: 'profileDecryptSuccess',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Theme mode`
   String get themeMode {
     return Intl.message('Theme mode', name: 'themeMode', desc: '', args: []);
@@ -1359,10 +1469,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Once enabled, the Clash kernel can be controlled via API`
+  /// `Once enabled, the Clash kernel can be controlled on port 9090`
   String get externalControllerDesc {
     return Intl.message(
-      'Once enabled, the Clash kernel can be controlled via API',
+      'Once enabled, the Clash kernel can be controlled on port 9090',
       name: 'externalControllerDesc',
       desc: '',
       args: [],
@@ -3550,7 +3660,7 @@ class AppLocalizations {
   }
 
   /// `Your subscription expires in {days} day(s)`
-  String subscriptionExpiresInDays(String days) {
+  String subscriptionExpiresInDays(Object days) {
     return Intl.message(
       'Your subscription expires in $days day(s)',
       name: 'subscriptionExpiresInDays',
@@ -3581,14 +3691,10 @@ class AppLocalizations {
 
   /// `Renew`
   String get renew {
-    return Intl.message(
-      'Renew',
-      name: 'renew',
-      desc: '',
-      args: [],
-    );
+    return Intl.message('Renew', name: 'renew', desc: '', args: []);
   }
 
+  /// `Announcement`
   String get announcement {
     return Intl.message(
       'Announcement',

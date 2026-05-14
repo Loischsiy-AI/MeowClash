@@ -7,6 +7,7 @@ import 'package:flclashx/common/common.dart';
 import 'package:flclashx/enum/enum.dart';
 import 'package:flclashx/models/models.dart';
 import 'package:flclashx/pages/editor.dart';
+import 'package:flclashx/services/subscription_crypto.dart';
 import 'package:flclashx/state.dart';
 import 'package:flclashx/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +30,11 @@ class _EditProfileViewState extends State<EditProfileView> {
   late TextEditingController labelController;
   late TextEditingController urlController;
   late TextEditingController autoUpdateDurationController;
+  late TextEditingController decryptPasswordController;
+  late TextEditingController decryptIterationsController;
   late bool autoUpdate;
+  bool _showDecryptPassword = false;
+  bool _isDecrypting = false;
   String? rawText;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final fileInfoNotifier = ValueNotifier<FileInfo?>(null);
@@ -46,9 +51,24 @@ class _EditProfileViewState extends State<EditProfileView> {
     autoUpdateDurationController = TextEditingController(
       text: widget.profile.autoUpdateDuration.inMinutes.toString(),
     );
+    decryptPasswordController = TextEditingController();
+    decryptIterationsController = TextEditingController(
+      text: kDefaultPbkdf2Iterations.toString(),
+    );
     appPath.getProfilePath(widget.profile.id).then((path) async {
       fileInfoNotifier.value = await _getFileInfo(path);
     });
+  }
+
+  @override
+  void dispose() {
+    labelController.dispose();
+    urlController.dispose();
+    autoUpdateDurationController.dispose();
+    decryptPasswordController.dispose();
+    decryptIterationsController.dispose();
+    fileInfoNotifier.dispose();
+    super.dispose();
   }
 
   Future<void> _handleConfirm() async {
@@ -192,10 +212,108 @@ class _EditProfileViewState extends State<EditProfileView> {
     final platformFile = await globalState.safeRun(picker.pickerFile);
     if (platformFile?.bytes == null) return;
     fileData = platformFile?.bytes;
+    rawText = null;
     fileInfoNotifier.value = fileInfoNotifier.value?.copyWith(
       size: fileData?.length ?? 0,
       lastModified: DateTime.now(),
     );
+  }
+
+  Future<String?> _readCurrentProfileText() async {
+    if (fileData != null) {
+      try {
+        return utf8.decode(fileData!);
+      } catch (_) {
+        return null;
+      }
+    }
+    final profilePath = await appPath.getProfilePath(widget.profile.id);
+    final file = File(profilePath);
+    if (!await file.exists()) {
+      return null;
+    }
+    try {
+      return await file.readAsString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _handleDecryptProfile() async {
+    if (_isDecrypting) return;
+    final password = decryptPasswordController.text;
+    if (password.isEmpty) {
+      globalState.showNotifier(
+        appLocalizations.profileDecryptPasswordRequired,
+      );
+      return;
+    }
+    final iterationsText = decryptIterationsController.text.trim();
+    final iterations = iterationsText.isEmpty
+        ? kDefaultPbkdf2Iterations
+        : int.tryParse(iterationsText);
+    if (iterations == null || iterations <= 0) {
+      globalState.showNotifier(
+        appLocalizations.profileDecryptIterationsInvalid,
+      );
+      return;
+    }
+    setState(() {
+      _isDecrypting = true;
+    });
+    try {
+      final encoded = await _readCurrentProfileText();
+      if (encoded == null || encoded.isEmpty) {
+        globalState.showNotifier(
+          appLocalizations.profileDecryptSourceMissing,
+        );
+        return;
+      }
+      final plaintext = await globalState.safeRun<Uint8List>(
+        () async => SubscriptionCrypto.decryptBase64(
+          encoded,
+          password: password,
+          iterations: iterations,
+        ),
+        silence: false,
+        title: appLocalizations.profileDecryptFailed,
+      );
+      if (plaintext == null) return;
+      final validationMessage = await globalState.safeRun<String>(
+        () async => clashCore.validateConfig(utf8.decode(plaintext)),
+        silence: false,
+        title: appLocalizations.profileDecryptFailed,
+      );
+      if (validationMessage == null) return;
+      if (validationMessage.isNotEmpty) {
+        await globalState.showMessage(
+          title: appLocalizations.profileDecryptFailed,
+          message: TextSpan(text: validationMessage),
+        );
+        return;
+      }
+      fileData = plaintext;
+      rawText = utf8.decode(plaintext);
+      final existingInfo = fileInfoNotifier.value;
+      fileInfoNotifier.value = existingInfo == null
+          ? FileInfo(
+              size: plaintext.length,
+              lastModified: DateTime.now(),
+            )
+          : existingInfo.copyWith(
+              size: plaintext.length,
+              lastModified: DateTime.now(),
+            );
+      globalState.showNotifier(
+        appLocalizations.profileDecryptSuccess,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDecrypting = false;
+        });
+      }
+    }
   }
 
   Future<void> _handleBack() async {
@@ -327,6 +445,84 @@ class _EditProfileViewState extends State<EditProfileView> {
                     ),
                   ),
           ),
+      ),
+      ListItem(
+        title: Text(appLocalizations.profileDecryption),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                appLocalizations.profileDecryptionDesc,
+                style: context.textTheme.bodySmall?.copyWith(
+                  color: context.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: decryptPasswordController,
+                obscureText: !_showDecryptPassword,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.password],
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: appLocalizations.profileDecryptionPassword,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _showDecryptPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _showDecryptPassword = !_showDecryptPassword;
+                      });
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: decryptIterationsController,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: appLocalizations.profileDecryptionIterations,
+                  helperText:
+                      appLocalizations.profileDecryptionIterationsHelper,
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return null;
+                  }
+                  final parsed = int.tryParse(value.trim());
+                  if (parsed == null || parsed <= 0) {
+                    return appLocalizations
+                        .profileDecryptIterationsInvalid;
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  onPressed: _isDecrypting ? null : _handleDecryptProfile,
+                  icon: _isDecrypting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.lock_open),
+                  label: Text(appLocalizations.profileDecryptionAction),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     ];
     return CommonPopScope(

@@ -37,9 +37,9 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m7(count) => "Выбрано ${count} элементов";
 
-  static String m8(label) => "${label} должен быть URL";
+  static String m8(days) => "Ваша подписка истекает через ${days} дн.";
 
-  static String m9(days) => "Ваша подписка истекает через ${days} дн.";
+  static String m9(label) => "${label} должен быть URL";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -95,6 +95,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "allowLanDesc": MessageLookupByLibrary.simpleMessage(
       "Разрешить доступ к прокси из локальной сети",
     ),
+    "announcement": MessageLookupByLibrary.simpleMessage("Объявление"),
     "app": MessageLookupByLibrary.simpleMessage("Приложение"),
     "appAccessControl": MessageLookupByLibrary.simpleMessage(
       "Контроль доступа приложений",
@@ -288,7 +289,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Внешний контроллер",
     ),
     "externalControllerDesc": MessageLookupByLibrary.simpleMessage(
-      "Включить управление ядром через API",
+      "Включить управление ядром через API на порту 9090",
     ),
     "externalLink": MessageLookupByLibrary.simpleMessage("Внешняя ссылка"),
     "externalResources": MessageLookupByLibrary.simpleMessage(
@@ -575,6 +576,39 @@ class MessageLookup extends MessageLookupByLibrary {
         MessageLookupByLibrary.simpleMessage(
           "Пожалуйста, введите интервал времени для автообновления",
         ),
+    "profileDecryptFailed": MessageLookupByLibrary.simpleMessage(
+      "Не удалось расшифровать подписку",
+    ),
+    "profileDecryptIterationsInvalid": MessageLookupByLibrary.simpleMessage(
+      "Количество итераций должно быть положительным числом",
+    ),
+    "profileDecryptPasswordRequired": MessageLookupByLibrary.simpleMessage(
+      "Пожалуйста, введите пароль для расшифровки",
+    ),
+    "profileDecryptSourceMissing": MessageLookupByLibrary.simpleMessage(
+      "Нет файла подписки для расшифровки",
+    ),
+    "profileDecryptSuccess": MessageLookupByLibrary.simpleMessage(
+      "Подписка успешно расшифрована",
+    ),
+    "profileDecryption": MessageLookupByLibrary.simpleMessage(
+      "Расшифровка подписки",
+    ),
+    "profileDecryptionAction": MessageLookupByLibrary.simpleMessage(
+      "Расшифровать",
+    ),
+    "profileDecryptionDesc": MessageLookupByLibrary.simpleMessage(
+      "Расшифровка зашифрованного файла подписки (AES-256-CBC, ключ из пароля через PBKDF2HMAC-SHA256).",
+    ),
+    "profileDecryptionIterations": MessageLookupByLibrary.simpleMessage(
+      "Итерации PBKDF2",
+    ),
+    "profileDecryptionIterationsHelper": MessageLookupByLibrary.simpleMessage(
+      "Должно совпадать со значением, использованным при шифровании (по умолчанию 480000)",
+    ),
+    "profileDecryptionPassword": MessageLookupByLibrary.simpleMessage(
+      "Пароль для расшифровки",
+    ),
     "profileHasUpdate": MessageLookupByLibrary.simpleMessage(
       "Профиль был изменён. Отключить автообновление?",
     ),
@@ -652,6 +686,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "remove": MessageLookupByLibrary.simpleMessage("Удалить"),
     "rename": MessageLookupByLibrary.simpleMessage("Переименовать"),
+    "renew": MessageLookupByLibrary.simpleMessage("Продлить"),
     "requests": MessageLookupByLibrary.simpleMessage("Запросы"),
     "requestsDesc": MessageLookupByLibrary.simpleMessage(
       "Просмотр последних записей запросов",
@@ -685,6 +720,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "ruleName": MessageLookupByLibrary.simpleMessage("Название правила"),
     "ruleProviders": MessageLookupByLibrary.simpleMessage("Провайдеры правил"),
     "ruleTarget": MessageLookupByLibrary.simpleMessage("Цель правила"),
+    "running": MessageLookupByLibrary.simpleMessage("Запущено"),
     "save": MessageLookupByLibrary.simpleMessage("Сохранить"),
     "saveChanges": MessageLookupByLibrary.simpleMessage("Сохранить изменения?"),
     "saveTip": MessageLookupByLibrary.simpleMessage("Сохранить изменения?"),
@@ -721,20 +757,29 @@ class MessageLookup extends MessageLookupByLibrary {
     "stackMode": MessageLookupByLibrary.simpleMessage("Режим стека"),
     "standard": MessageLookupByLibrary.simpleMessage("Стандартный"),
     "start": MessageLookupByLibrary.simpleMessage("Старт"),
-    "running": MessageLookupByLibrary.simpleMessage("Запущено"),
     "startVpn": MessageLookupByLibrary.simpleMessage("Запуск VPN..."),
     "status": MessageLookupByLibrary.simpleMessage("Статус"),
     "statusDesc": MessageLookupByLibrary.simpleMessage(
       "При выключении будет использоваться системный DNS",
     ),
     "stop": MessageLookupByLibrary.simpleMessage("Стоп"),
-    "stopped": MessageLookupByLibrary.simpleMessage("Остановлено"),
     "stopVpn": MessageLookupByLibrary.simpleMessage("Остановка VPN..."),
+    "stopped": MessageLookupByLibrary.simpleMessage("Остановлено"),
     "style": MessageLookupByLibrary.simpleMessage("Стиль"),
     "subRule": MessageLookupByLibrary.simpleMessage("Подправило"),
     "submit": MessageLookupByLibrary.simpleMessage("Отправить"),
     "subscriptionEternal": MessageLookupByLibrary.simpleMessage(
       "Бессрочная подписка",
+    ),
+    "subscriptionExpired": MessageLookupByLibrary.simpleMessage(
+      "Ваша подписка истекла",
+    ),
+    "subscriptionExpiresInDays": m8,
+    "subscriptionExpiresSoon": MessageLookupByLibrary.simpleMessage(
+      "Подписка скоро истекает",
+    ),
+    "subscriptionExpiresToday": MessageLookupByLibrary.simpleMessage(
+      "Ваша подписка истекает сегодня",
     ),
     "subscriptionUnlimited": MessageLookupByLibrary.simpleMessage(
       "Бессрочная подписка",
@@ -810,7 +855,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "upload": MessageLookupByLibrary.simpleMessage("Отправка"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("Загрузить профиль по URL"),
-    "urlTip": m8,
+    "urlTip": m9,
     "useHosts": MessageLookupByLibrary.simpleMessage("Использовать hosts"),
     "useSystemHosts": MessageLookupByLibrary.simpleMessage(
       "Использовать системные hosts",
@@ -838,17 +883,5 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "years": MessageLookupByLibrary.simpleMessage("Лет"),
     "zh_CN": MessageLookupByLibrary.simpleMessage("Упрощенный китайский"),
-    "subscriptionExpiresSoon": MessageLookupByLibrary.simpleMessage(
-      "Подписка скоро истекает",
-    ),
-    "subscriptionExpiresInDays": m9,
-    "subscriptionExpiresToday": MessageLookupByLibrary.simpleMessage(
-      "Ваша подписка истекает сегодня",
-    ),
-    "subscriptionExpired": MessageLookupByLibrary.simpleMessage(
-      "Ваша подписка истекла",
-    ),
-    "renew": MessageLookupByLibrary.simpleMessage("Продлить"),
-    "announcement": MessageLookupByLibrary.simpleMessage("Объявление"),
   };
 }
