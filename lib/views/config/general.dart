@@ -369,7 +369,7 @@ class SendHeadersToggle extends StatefulWidget {
 
 class _SendHeadersToggleState extends State<SendHeadersToggle> {
   static const _preferenceKey = 'sendDeviceHeaders';
-  bool _sendHeaders = true;
+  bool _sendHeaders = false;
 
   @override
   void initState() {
@@ -381,7 +381,7 @@ class _SendHeadersToggleState extends State<SendHeadersToggle> {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
-        _sendHeaders = prefs.getBool(_preferenceKey) ?? true;
+        _sendHeaders = prefs.getBool(_preferenceKey) ?? false;
       });
     }
   }
