@@ -1,16 +1,16 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/models/common.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/models/common.dart';
 import 'package:flutter/material.dart';
 
 class CommonPopupRoute<T> extends PopupRoute<T> {
-  final WidgetBuilder builder;
-  ValueNotifier<Offset> offsetNotifier;
 
   CommonPopupRoute({
     required this.barrierLabel,
     required this.builder,
     required this.offsetNotifier,
   });
+  final WidgetBuilder builder;
+  ValueNotifier<Offset> offsetNotifier;
 
   @override
   String? barrierLabel;
@@ -26,18 +26,14 @@ class CommonPopupRoute<T> extends PopupRoute<T> {
     BuildContext context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
-  ) {
-    return builder(context);
-  }
+  ) => builder(
+      context,
+    );
 
   @override
-  Widget buildTransitions(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    final align = Alignment.topRight;
+  Widget buildTransitions(BuildContext context, Animation<double> animation,
+      Animation<double> secondaryAnimation, Widget child) {
+    const align = Alignment.topRight;
     final animationValue = CurvedAnimation(
       parent: animation,
       curve: Curves.easeIn,
@@ -45,33 +41,34 @@ class CommonPopupRoute<T> extends PopupRoute<T> {
     return SafeArea(
       child: ValueListenableBuilder(
         valueListenable: offsetNotifier,
-        builder: (_, value, child) {
-          return Align(
+        builder: (_, value, child) => Align(
             alignment: align,
             child: CustomSingleChildLayout(
               delegate: OverflowAwareLayoutDelegate(
-                offset: value.translate(48, -8),
+                offset: value.translate(
+                  48,
+                  -8,
+                ),
               ),
               child: child,
             ),
-          );
-        },
+          ),
         child: AnimatedBuilder(
           animation: animation,
-          builder: (_, Widget? child) {
-            return Opacity(
+          builder: (_, child) => Opacity(
               opacity: 0.1 + 0.9 * animationValue,
               child: Transform.scale(
                 alignment: align,
                 scale: 0.7 + 0.3 * animationValue,
                 child: Transform.translate(
-                  offset: Offset(0, -10) * (1 - animationValue),
-                  child: child!,
+                  offset: const Offset(0, -10) * (1 - animationValue),
+                  child: child,
                 ),
               ),
-            );
-          },
-          child: builder(context),
+            ),
+          child: builder(
+            context,
+          ),
         ),
       ),
     );
@@ -93,17 +90,19 @@ class PopupController extends ValueNotifier<bool> {
   }
 }
 
-typedef PopupOpen = Function({Offset offset});
+typedef PopupOpen = Function({
+  Offset offset,
+});
 
 class CommonPopupBox extends StatefulWidget {
-  final Widget Function(PopupOpen open) targetBuilder;
-  final Widget popup;
 
   const CommonPopupBox({
     super.key,
     required this.targetBuilder,
     required this.popup,
   });
+  final Widget Function(PopupOpen open) targetBuilder;
+  final Widget popup;
 
   @override
   State<CommonPopupBox> createState() => _CommonPopupBoxState();
@@ -120,17 +119,15 @@ class _CommonPopupBoxState extends State<CommonPopupBox> {
     _isOpen = true;
     Navigator.of(context)
         .push(
-          CommonPopupRoute(
-            barrierLabel: utils.id,
-            builder: (BuildContext context) {
-              return widget.popup;
-            },
-            offsetNotifier: _targetOffsetValueNotifier,
-          ),
-        )
+      CommonPopupRoute(
+        barrierLabel: utils.id,
+        builder: (context) => widget.popup,
+        offsetNotifier: _targetOffsetValueNotifier,
+      ),
+    )
         .then((_) {
-          _isOpen = false;
-        });
+      _isOpen = false;
+    });
   }
 
   void _updateOffset() {
@@ -141,61 +138,57 @@ class _CommonPopupBoxState extends State<CommonPopupBox> {
     final viewPadding = MediaQuery.of(context).viewPadding;
     _targetOffsetValueNotifier.value = renderBox
         .localToGlobal(
-          Offset.zero.translate(viewPadding.right, viewPadding.top),
+          Offset.zero.translate(
+            viewPadding.right,
+            viewPadding.top,
+          ),
         )
-        .translate(_offset.dx, _offset.dy);
+        .translate(
+          _offset.dx,
+          _offset.dy,
+        );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (_, _) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_isOpen) {
-            _updateOffset();
-          }
-        });
-        return widget.targetBuilder(_open);
-      },
-    );
-  }
+  Widget build(BuildContext context) => LayoutBuilder(builder: (_, __) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_isOpen) {
+          _updateOffset();
+        }
+      });
+      return widget.targetBuilder(_open);
+    });
 }
 
 class OverflowAwareLayoutDelegate extends SingleChildLayoutDelegate {
+
+  OverflowAwareLayoutDelegate({
+    required this.offset,
+  });
   final Offset offset;
 
-  OverflowAwareLayoutDelegate({required this.offset});
-
   @override
-  Size getSize(BoxConstraints constraints) {
-    return Size(constraints.maxWidth, constraints.maxHeight);
-  }
+  Size getSize(BoxConstraints constraints) => Size(constraints.maxWidth, constraints.maxHeight);
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    final safeOffset = Offset(16, 16);
-    double x = (offset.dx - childSize.width).clamp(
-      0,
+    const safeOffset = Offset(16, 16);
+    final x = (offset.dx - childSize.width).clamp(
+      0.0,
       size.width - safeOffset.dx - childSize.width,
     );
-    double y = (offset.dy).clamp(
-      0,
+    final y = (offset.dy).clamp(
+      0.0,
       size.height - safeOffset.dy - childSize.height,
     );
     return Offset(x, y);
   }
 
   @override
-  bool shouldRelayout(covariant OverflowAwareLayoutDelegate oldDelegate) {
-    return oldDelegate.offset != offset;
-  }
+  bool shouldRelayout(covariant OverflowAwareLayoutDelegate oldDelegate) => oldDelegate.offset != offset;
 }
 
 class CommonPopupMenu extends StatelessWidget {
-  final List<PopupMenuItemData> items;
-  final double minWidth;
-  final double minItemVerticalPadding;
-  final double fontSize;
 
   const CommonPopupMenu({
     super.key,
@@ -204,6 +197,10 @@ class CommonPopupMenu extends StatelessWidget {
     this.minItemVerticalPadding = 16,
     this.fontSize = 15,
   });
+  final List<PopupMenuItemData> items;
+  final double minWidth;
+  final double minItemVerticalPadding;
+  final double fontSize;
 
   Widget _popupMenuItem(
     BuildContext context, {
@@ -223,7 +220,9 @@ class CommonPopupMenu extends StatelessWidget {
             }
           : null,
       child: Container(
-        constraints: BoxConstraints(minWidth: minWidth),
+        constraints: BoxConstraints(
+          minWidth: minWidth,
+        ),
         padding: EdgeInsets.only(
           left: 16,
           right: 64,
@@ -234,8 +233,14 @@ class CommonPopupMenu extends StatelessWidget {
           mainAxisSize: MainAxisSize.max,
           children: [
             if (item.icon != null) ...[
-              Icon(item.icon, size: fontSize + 4, color: color),
-              SizedBox(width: 16),
+              Icon(
+                item.icon,
+                size: fontSize + 4,
+                color: color,
+              ),
+              const SizedBox(
+                width: 16,
+              ),
             ],
             Flexible(
               child: Text(
@@ -253,14 +258,13 @@ class CommonPopupMenu extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
+  Widget build(BuildContext context) => IntrinsicHeight(
       child: IntrinsicWidth(
         child: Card(
           elevation: 12,
           color: context.colorScheme.surfaceContainer,
           clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
+          shape: RoundedSuperellipseBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -268,13 +272,19 @@ class CommonPopupMenu extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final item in items.asMap().entries) ...[
-                _popupMenuItem(context, item: item.value, index: item.key),
-                if (item.value != items.last) Divider(height: 0),
+                _popupMenuItem(
+                  context,
+                  item: item.value,
+                  index: item.key,
+                ),
+                if (item.value != items.last)
+                  const Divider(
+                    height: 0,
+                  ),
               ],
             ],
           ),
         ),
       ),
     );
-  }
 }

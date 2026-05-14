@@ -1,7 +1,7 @@
 // ignore_for_file: invalid_annotation_target
 
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'generated/core.freezed.dart';
@@ -12,7 +12,7 @@ abstract mixin class AppMessageListener {
 
   void onDelay(Delay delay) {}
 
-  void onRequest(TrackerInfo connection) {}
+  void onRequest(Connection connection) {}
 
   void onLoaded(String providerName) {}
 }
@@ -24,12 +24,11 @@ abstract mixin class AppMessageListener {
 // }
 
 @freezed
-abstract class SetupParams with _$SetupParams {
+class SetupParams with _$SetupParams {
   const factory SetupParams({
-    @JsonKey(name: 'config') required Map<String, dynamic> config,
-    @JsonKey(name: 'selected-map') required Map<String, String> selectedMap,
-    @JsonKey(name: 'test-url') required String testUrl,
-    @JsonKey(name: 'override-test-url') @Default(true) bool overrideTestUrl,
+    @JsonKey(name: "config") required Map<String, dynamic> config,
+    @JsonKey(name: "selected-map") required Map<String, String> selectedMap,
+    @JsonKey(name: "test-url") required String testUrl,
   }) = _SetupParams;
 
   factory SetupParams.fromJson(Map<String, dynamic> json) =>
@@ -46,7 +45,7 @@ abstract class SetupParams with _$SetupParams {
 // }
 
 @freezed
-abstract class UpdateParams with _$UpdateParams {
+class UpdateParams with _$UpdateParams {
   const factory UpdateParams({
     required Tun tun,
     @JsonKey(name: 'mixed-port') required int mixedPort,
@@ -67,12 +66,12 @@ abstract class UpdateParams with _$UpdateParams {
 }
 
 @freezed
-abstract class CoreState with _$CoreState {
+class CoreState with _$CoreState {
   const factory CoreState({
-    @JsonKey(name: 'vpn-props') required VpnProps vpnProps,
-    @JsonKey(name: 'only-statistics-proxy') required bool onlyStatisticsProxy,
-    @JsonKey(name: 'current-profile-name') required String currentProfileName,
-    @JsonKey(name: 'bypass-domain') @Default([]) List<String> bypassDomain,
+    @JsonKey(name: "vpn-props") required VpnProps vpnProps,
+    @JsonKey(name: "only-statistics-proxy") required bool onlyStatisticsProxy,
+    @JsonKey(name: "current-profile-name") required String currentProfileName,
+    @JsonKey(name: "bypass-domain") @Default([]) List<String> bypassDomain,
   }) = _CoreState;
 
   factory CoreState.fromJson(Map<String, Object?> json) =>
@@ -80,7 +79,7 @@ abstract class CoreState with _$CoreState {
 }
 
 @freezed
-abstract class AndroidVpnOptions with _$AndroidVpnOptions {
+class AndroidVpnOptions with _$AndroidVpnOptions {
   const factory AndroidVpnOptions({
     required bool enable,
     required int port,
@@ -91,9 +90,7 @@ abstract class AndroidVpnOptions with _$AndroidVpnOptions {
     required String ipv4Address,
     required String ipv6Address,
     @Default([]) List<String> routeAddress,
-    @Default('config') String routeMode,
     required String dnsServerAddress,
-    @Default(false) bool dozeSuspend,
   }) = _AndroidVpnOptions;
 
   factory AndroidVpnOptions.fromJson(Map<String, Object?> json) =>
@@ -101,9 +98,9 @@ abstract class AndroidVpnOptions with _$AndroidVpnOptions {
 }
 
 @freezed
-abstract class InitParams with _$InitParams {
+class InitParams with _$InitParams {
   const factory InitParams({
-    @JsonKey(name: 'home-dir') required String homeDir,
+    @JsonKey(name: "home-dir") required String homeDir,
     required int version,
   }) = _InitParams;
 
@@ -112,10 +109,10 @@ abstract class InitParams with _$InitParams {
 }
 
 @freezed
-abstract class ChangeProxyParams with _$ChangeProxyParams {
+class ChangeProxyParams with _$ChangeProxyParams {
   const factory ChangeProxyParams({
-    @JsonKey(name: 'group-name') required String groupName,
-    @JsonKey(name: 'proxy-name') required String proxyName,
+    @JsonKey(name: "group-name") required String groupName,
+    @JsonKey(name: "proxy-name") required String proxyName,
   }) = _ChangeProxyParams;
 
   factory ChangeProxyParams.fromJson(Map<String, Object?> json) =>
@@ -123,10 +120,10 @@ abstract class ChangeProxyParams with _$ChangeProxyParams {
 }
 
 @freezed
-abstract class UpdateGeoDataParams with _$UpdateGeoDataParams {
+class UpdateGeoDataParams with _$UpdateGeoDataParams {
   const factory UpdateGeoDataParams({
-    @JsonKey(name: 'geo-type') required String geoType,
-    @JsonKey(name: 'geo-name') required String geoName,
+    @JsonKey(name: "geo-type") required String geoType,
+    @JsonKey(name: "geo-name") required String geoName,
   }) = _UpdateGeoDataParams;
 
   factory UpdateGeoDataParams.fromJson(Map<String, Object?> json) =>
@@ -134,34 +131,44 @@ abstract class UpdateGeoDataParams with _$UpdateGeoDataParams {
 }
 
 @freezed
-abstract class AppMessage with _$AppMessage {
-  const factory AppMessage({required AppMessageType type, dynamic data}) =
-      _AppMessage;
+class AppMessage with _$AppMessage {
+  const factory AppMessage({
+    required AppMessageType type,
+    dynamic data,
+  }) = _AppMessage;
 
   factory AppMessage.fromJson(Map<String, Object?> json) =>
       _$AppMessageFromJson(json);
 }
 
 @freezed
-abstract class InvokeMessage with _$InvokeMessage {
-  const factory InvokeMessage({required InvokeMessageType type, dynamic data}) =
-      _InvokeMessage;
+class InvokeMessage with _$InvokeMessage {
+  const factory InvokeMessage({
+    required InvokeMessageType type,
+    dynamic data,
+  }) = _InvokeMessage;
 
   factory InvokeMessage.fromJson(Map<String, Object?> json) =>
       _$InvokeMessageFromJson(json);
 }
 
 @freezed
-abstract class Delay with _$Delay {
-  const factory Delay({required String name, required String url, int? value}) =
-      _Delay;
+class Delay with _$Delay {
+  const factory Delay({
+    required String name,
+    required String url,
+    int? value,
+  }) = _Delay;
 
   factory Delay.fromJson(Map<String, Object?> json) => _$DelayFromJson(json);
 }
 
 @freezed
-abstract class Now with _$Now {
-  const factory Now({required String name, required String value}) = _Now;
+class Now with _$Now {
+  const factory Now({
+    required String name,
+    required String value,
+  }) = _Now;
 
   factory Now.fromJson(Map<String, Object?> json) => _$NowFromJson(json);
 }
@@ -188,12 +195,12 @@ abstract class Now with _$Now {
 // }
 
 @freezed
-abstract class ProviderSubscriptionInfo with _$ProviderSubscriptionInfo {
+class ProviderSubscriptionInfo with _$ProviderSubscriptionInfo {
   const factory ProviderSubscriptionInfo({
-    @JsonKey(name: 'UPLOAD') @Default(0) int upload,
-    @JsonKey(name: 'DOWNLOAD') @Default(0) int download,
-    @JsonKey(name: 'TOTAL') @Default(0) int total,
-    @JsonKey(name: 'EXPIRE') @Default(0) int expire,
+    @JsonKey(name: "UPLOAD") @Default(0) int upload,
+    @JsonKey(name: "DOWNLOAD") @Default(0) int download,
+    @JsonKey(name: "TOTAL") @Default(0) int total,
+    @JsonKey(name: "EXPIRE") @Default(0) int expire,
   }) = _ProviderSubscriptionInfo;
 
   factory ProviderSubscriptionInfo.fromJson(Map<String, Object?> json) =>
@@ -211,17 +218,17 @@ SubscriptionInfo? subscriptionInfoFormCore(Map<String, Object?>? json) {
 }
 
 @freezed
-abstract class ExternalProvider with _$ExternalProvider {
+class ExternalProvider with _$ExternalProvider {
   const factory ExternalProvider({
     required String name,
     required String type,
     String? path,
     required int count,
-    @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore)
+    @JsonKey(name: "subscription-info", fromJson: subscriptionInfoFormCore)
     SubscriptionInfo? subscriptionInfo,
     @Default(false) bool isUpdating,
-    @JsonKey(name: 'vehicle-type') required String vehicleType,
-    @JsonKey(name: 'update-at') required DateTime updateAt,
+    @JsonKey(name: "vehicle-type") required String vehicleType,
+    @JsonKey(name: "update-at") required DateTime updateAt,
   }) = _ExternalProvider;
 
   factory ExternalProvider.fromJson(Map<String, Object?> json) =>
@@ -229,7 +236,7 @@ abstract class ExternalProvider with _$ExternalProvider {
 }
 
 @freezed
-abstract class Action with _$Action {
+class Action with _$Action {
   const factory Action({
     required ActionMethod method,
     required dynamic data,
@@ -240,7 +247,7 @@ abstract class Action with _$Action {
 }
 
 @freezed
-abstract class ActionResult with _$ActionResult {
+class ActionResult with _$ActionResult {
   const factory ActionResult({
     required ActionMethod method,
     required dynamic data,

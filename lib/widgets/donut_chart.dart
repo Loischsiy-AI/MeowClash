@@ -1,22 +1,22 @@
 import 'dart:math';
 
-import 'package:meow_clash/common/common.dart';
+import 'package:flclashx/common/common.dart';
 import 'package:flutter/material.dart';
 
 @immutable
 class DonutChartData {
+
+  const DonutChartData({
+    required double value,
+    required this.color,
+  }) : _value = value + 1;
   final double _value;
   final Color color;
-
-  const DonutChartData({required double value, required this.color})
-    : _value = value + 1;
 
   double get value => _value;
 
   @override
-  String toString() {
-    return 'DonutChartData{_value: $_value}';
-  }
+  String toString() => 'DonutChartData{_value: $_value}';
 
   @override
   bool operator ==(Object other) =>
@@ -31,14 +31,14 @@ class DonutChartData {
 }
 
 class DonutChart extends StatefulWidget {
-  final List<DonutChartData> data;
-  final Duration duration;
 
   const DonutChart({
     super.key,
     required this.data,
     this.duration = commonDuration,
   });
+  final List<DonutChartData> data;
+  final Duration duration;
 
   @override
   State<DonutChart> createState() => _DonutChartState();
@@ -75,28 +75,24 @@ class _DonutChartState extends State<DonutChart>
   }
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
+  Widget build(BuildContext context) => AnimatedBuilder(
       animation: _animationController,
-      builder: (context, child) {
-        return CustomPaint(
+      builder: (context, child) => CustomPaint(
           painter: DonutChartPainter(
             _oldData,
             widget.data,
             _animationController.value,
           ),
-        );
-      },
+        ),
     );
-  }
 }
 
 class DonutChartPainter extends CustomPainter {
+
+  DonutChartPainter(this.oldData, this.newData, this.progress);
   final List<DonutChartData> oldData;
   final List<DonutChartData> newData;
   final double progress;
-
-  DonutChartPainter(this.oldData, this.newData, this.progress);
 
   double _logTransform(double value) {
     const base = 10.0;
@@ -141,12 +137,15 @@ class DonutChartPainter extends CustomPainter {
     final gapAngle = 2 * asin(strokeWidth * 1 / (2 * radius)) * 1.2;
 
     final data = interpolatedData;
-    final total = data.fold<double>(0, (sum, item) => sum + item.value);
+    final total = data.fold<double>(
+      0,
+      (sum, item) => sum + item.value,
+    );
 
     if (total <= 0) return;
 
     final availableAngle = 2 * pi - (data.length * gapAngle);
-    double startAngle = -pi / 2 + gapAngle / 2;
+    var startAngle = -pi / 2 + gapAngle / 2;
 
     for (final item in data) {
       final sweepAngle = availableAngle * (item.value / total);
@@ -172,9 +171,7 @@ class DonutChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(DonutChartPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
+  bool shouldRepaint(DonutChartPainter oldDelegate) => oldDelegate.progress != progress ||
         oldDelegate.oldData != oldData ||
         oldDelegate.newData != newData;
-  }
 }

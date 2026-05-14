@@ -1,8 +1,8 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/open_container.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/state.dart';
+import 'package:flclashx/widgets/open_container.dart';
 import 'package:flutter/material.dart';
 
 import 'card.dart';
@@ -15,75 +15,70 @@ class Delegate {
 }
 
 class RadioDelegate<T> extends Delegate {
-  final T value;
-  final T groupValue;
-  final void Function(T?)? onChanged;
 
   const RadioDelegate({
     required this.value,
     required this.groupValue,
     this.onChanged,
   });
+  final T value;
+  final T groupValue;
+  final void Function(T?)? onChanged;
 }
 
 class SwitchDelegate<T> extends Delegate {
+
+  const SwitchDelegate({
+    required this.value,
+    this.onChanged,
+  });
   final bool value;
   final ValueChanged<bool>? onChanged;
-
-  const SwitchDelegate({required this.value, this.onChanged});
 }
 
 class CheckboxDelegate<T> extends Delegate {
+
+  const CheckboxDelegate({
+    this.value = false,
+    this.onChanged,
+  });
   final bool value;
   final ValueChanged<bool?>? onChanged;
-
-  const CheckboxDelegate({this.value = false, this.onChanged});
 }
 
 class OpenDelegate extends Delegate {
-  final Widget widget;
-  final String title;
-  final double? maxWidth;
-  final List<Widget> actions;
-  final bool blur;
-  final bool wrap;
-  final bool forceFull;
 
   const OpenDelegate({
     required this.title,
     required this.widget,
     this.maxWidth,
-    this.actions = const [],
-    this.blur = false,
-    this.wrap = true,
-    this.forceFull = true,
+    this.action,
+    this.blur = true,
   });
-}
-
-class NextDelegate extends Delegate {
   final Widget widget;
   final String title;
   final double? maxWidth;
-  final List<Widget> actions;
+  final Widget? action;
   final bool blur;
-  final bool wrap;
+}
+
+class NextDelegate extends Delegate {
 
   const NextDelegate({
     required this.title,
     required this.widget,
     this.maxWidth,
-    this.actions = const [],
-    this.blur = false,
-    this.wrap = true,
+    this.action,
+    this.blur = true,
   });
+  final Widget widget;
+  final String title;
+  final double? maxWidth;
+  final Widget? action;
+  final bool blur;
 }
 
 class OptionsDelegate<T> extends Delegate {
-  final List<T> options;
-  final String title;
-  final T value;
-  final String Function(T value) textBuilder;
-  final Function(T? value) onChanged;
 
   const OptionsDelegate({
     required this.title,
@@ -92,42 +87,33 @@ class OptionsDelegate<T> extends Delegate {
     required this.value,
     required this.onChanged,
   });
+  final List<T> options;
+  final String title;
+  final T value;
+  final String Function(T value) textBuilder;
+  final Function(T? value) onChanged;
 }
 
 class InputDelegate extends Delegate {
-  final String title;
-  final String value;
-  final String? suffixText;
-  final String? hintText;
-  final Function(String? value)? onChanged;
-  final FormFieldValidator<String>? validator;
-
-  final String? resetValue;
 
   const InputDelegate({
     required this.title,
     required this.value,
     this.suffixText,
-    this.hintText,
     required this.onChanged,
     this.resetValue,
     this.validator,
   });
+  final String title;
+  final String value;
+  final String? suffixText;
+  final Function(String? value) onChanged;
+  final FormFieldValidator<String>? validator;
+
+  final String? resetValue;
 }
 
 class ListItem<T> extends StatelessWidget {
-  final Widget? leading;
-  final Widget title;
-  final Widget? subtitle;
-  final EdgeInsets padding;
-  final ListTileTitleAlignment tileTitleAlignment;
-  final bool? dense;
-  final Widget? trailing;
-  final Delegate delegate;
-  final double? horizontalTitleGap;
-  final TextStyle? titleTextStyle;
-  final TextStyle? subtitleTextStyle;
-  final void Function()? onTap;
 
   const ListItem({
     super.key,
@@ -216,15 +202,14 @@ class ListItem<T> extends StatelessWidget {
     this.titleTextStyle,
     this.subtitleTextStyle,
     this.tileTitleAlignment = ListTileTitleAlignment.center,
-  }) : trailing = null,
-       onTap = null;
+  })  : trailing = null,
+        onTap = null;
 
   const ListItem.switchItem({
     super.key,
     required this.title,
     this.subtitle,
     this.leading,
-    this.trailing,
     this.padding = const EdgeInsets.only(left: 16, right: 8),
     required SwitchDelegate<T> this.delegate,
     this.horizontalTitleGap,
@@ -232,7 +217,8 @@ class ListItem<T> extends StatelessWidget {
     this.titleTextStyle,
     this.subtitleTextStyle,
     this.tileTitleAlignment = ListTileTitleAlignment.center,
-  }) : onTap = null;
+  })  : trailing = null,
+        onTap = null;
 
   const ListItem.radio({
     super.key,
@@ -246,19 +232,28 @@ class ListItem<T> extends StatelessWidget {
     this.titleTextStyle,
     this.subtitleTextStyle,
     this.tileTitleAlignment = ListTileTitleAlignment.center,
-  }) : leading = null,
-       onTap = null;
+  })  : leading = null,
+        onTap = null;
+  final Widget? leading;
+  final Widget title;
+  final Widget? subtitle;
+  final EdgeInsets padding;
+  final ListTileTitleAlignment tileTitleAlignment;
+  final bool? dense;
+  final Widget? trailing;
+  final Delegate delegate;
+  final double? horizontalTitleGap;
+  final TextStyle? titleTextStyle;
+  final TextStyle? subtitleTextStyle;
+  final void Function()? onTap;
 
-  Widget _buildListTile({
+  ListTile _buildListTile({
     void Function()? onTap,
     Widget? trailing,
     Widget? leading,
-    bool enabled = true,
-  }) {
-    return ListTile(
+  }) => ListTile(
       key: key,
       dense: dense,
-      enabled: enabled,
       titleTextStyle: titleTextStyle,
       subtitleTextStyle: subtitleTextStyle,
       leading: leading ?? this.leading,
@@ -271,58 +266,60 @@ class ListItem<T> extends StatelessWidget {
       trailing: trailing ?? this.trailing,
       contentPadding: padding,
     );
-  }
 
   @override
   Widget build(BuildContext context) {
     if (delegate is OpenDelegate) {
       final openDelegate = delegate as OpenDelegate;
-      final child = openDelegate.widget;
+      final child = SafeArea(
+        child: openDelegate.widget,
+      );
       return OpenContainer(
         closedBuilder: (_, action) {
-          openAction() {
+          void openAction() {
             final isMobile = globalState.appState.viewMode == ViewMode.mobile;
-            if (!isMobile || system.isDesktop) {
+            if (!isMobile) {
               showExtend(
                 context,
                 props: ExtendProps(
                   blur: openDelegate.blur,
                   maxWidth: openDelegate.maxWidth,
-                  forceFull: openDelegate.forceFull,
                 ),
-                builder: (_, type) {
-                  return openDelegate.wrap
-                      ? AdaptiveSheetScaffold(
-                          actions: openDelegate.actions,
-                          type: type,
-                          body: child,
-                          title: openDelegate.title,
-                        )
-                      : child;
-                },
+                builder: (_, type) => AdaptiveSheetScaffold(
+                    actions: [
+                      if (openDelegate.action != null) openDelegate.action!,
+                    ],
+                    type: type,
+                    body: child,
+                    title: openDelegate.title,
+                  ),
               );
               return;
             }
             action();
           }
 
-          return _buildListTile(onTap: openAction);
+          return _buildListTile(
+            onTap: openAction,
+          );
         },
-        openBuilder: (_, action) {
-          return openDelegate.wrap
-              ? CommonScaffold(
-                  key: Key(openDelegate.title),
-                  title: openDelegate.title,
-                  body: child,
-                  actions: openDelegate.actions,
-                )
-              : child;
-        },
+        openBuilder: (_, action) => CommonScaffold.open(
+            key: Key(openDelegate.title),
+            onBack: action,
+            title: openDelegate.title,
+            body: child,
+            disableBackground: true,
+            actions: [
+              if (openDelegate.action != null) openDelegate.action!,
+            ],
+          ),
       );
     }
     if (delegate is NextDelegate) {
       final nextDelegate = delegate as NextDelegate;
-      final child = nextDelegate.widget;
+      final child = SafeArea(
+        child: nextDelegate.widget,
+      );
 
       return _buildListTile(
         onTap: () {
@@ -332,16 +329,14 @@ class ListItem<T> extends StatelessWidget {
               blur: nextDelegate.blur,
               maxWidth: nextDelegate.maxWidth,
             ),
-            builder: (_, type) {
-              return nextDelegate.wrap
-                  ? AdaptiveSheetScaffold(
-                      actions: nextDelegate.actions,
-                      type: type,
-                      body: child,
-                      title: nextDelegate.title,
-                    )
-                  : child;
-            },
+            builder: (_, type) => AdaptiveSheetScaffold(
+                actions: [
+                  if (nextDelegate.action != null) nextDelegate.action!,
+                ],
+                type: type,
+                body: child,
+                title: nextDelegate.title,
+              ),
           );
         },
       );
@@ -364,24 +359,19 @@ class ListItem<T> extends StatelessWidget {
     }
     if (delegate is InputDelegate) {
       final inputDelegate = delegate as InputDelegate;
-      final isEnabled = inputDelegate.onChanged != null;
       return _buildListTile(
-        enabled: isEnabled,
-        onTap: isEnabled
-            ? () async {
-                final value = await globalState.showCommonDialog<String>(
-                  child: InputDialog(
-                    title: inputDelegate.title,
-                    value: inputDelegate.value,
-                    suffixText: inputDelegate.suffixText,
-                    hintText: inputDelegate.hintText,
-                    resetValue: inputDelegate.resetValue,
-                    validator: inputDelegate.validator,
-                  ),
-                );
-                inputDelegate.onChanged!(value);
-              }
-            : null,
+        onTap: () async {
+          final value = await globalState.showCommonDialog<String>(
+            child: InputDialog(
+              title: inputDelegate.title,
+              value: inputDelegate.value,
+              suffixText: inputDelegate.suffixText,
+              resetValue: inputDelegate.resetValue,
+              validator: inputDelegate.validator,
+            ),
+          );
+          inputDelegate.onChanged(value);
+        },
       );
     }
     if (delegate is CheckboxDelegate) {
@@ -392,72 +382,52 @@ class ListItem<T> extends StatelessWidget {
             checkboxDelegate.onChanged!(!checkboxDelegate.value);
           }
         },
-        trailing: Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Icon(
-            checkboxDelegate.value
-                ? Icons.check_circle_rounded
-                : Icons.circle_outlined,
-            size: 24,
-            color: checkboxDelegate.value
-                ? context.colorScheme.primary
-                : context.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-          ),
+        trailing: CommonCheckBox(
+          value: checkboxDelegate.value,
+          onChanged: checkboxDelegate.onChanged,
         ),
       );
     }
     if (delegate is SwitchDelegate) {
       final switchDelegate = delegate as SwitchDelegate;
-      final isEnabled = switchDelegate.onChanged != null;
       return _buildListTile(
-        enabled: isEnabled,
-        onTap: isEnabled
-            ? () {
-                switchDelegate.onChanged!(!switchDelegate.value);
-              }
-            : null,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ?trailing,
-            Switch(
-              value: switchDelegate.value,
-              onChanged: switchDelegate.onChanged,
-            ),
-          ],
+        onTap: () {
+          if (switchDelegate.onChanged != null) {
+            switchDelegate.onChanged!(!switchDelegate.value);
+          }
+        },
+        trailing: Switch(
+          value: switchDelegate.value,
+          onChanged: switchDelegate.onChanged,
         ),
       );
     }
     if (delegate is RadioDelegate) {
       final radioDelegate = delegate as RadioDelegate<T>;
-      final isSelected = radioDelegate.value == radioDelegate.groupValue;
       return _buildListTile(
         onTap: () {
           if (radioDelegate.onChanged != null) {
             radioDelegate.onChanged!(radioDelegate.value);
           }
         },
-        leading: Icon(
-          isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
-          size: 21,
-          color: isSelected
-              ? context.colorScheme.primary
-              : context.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+        leading: Radio<T>(
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          value: radioDelegate.value,
+          groupValue: radioDelegate.groupValue,
+          onChanged: radioDelegate.onChanged,
+          toggleable: true,
         ),
         trailing: trailing,
       );
     }
 
-    return _buildListTile(onTap: onTap);
+    return _buildListTile(
+      onTap: onTap,
+    );
   }
 }
 
 class ListHeader extends StatelessWidget {
-  final String title;
-  final String? subTitle;
-  final List<Widget> actions;
-  final EdgeInsets? padding;
-  final double? space;
 
   const ListHeader({
     super.key,
@@ -467,14 +437,22 @@ class ListHeader extends StatelessWidget {
     List<Widget>? actions,
     this.space,
   }) : actions = actions ?? const [];
+  final String title;
+  final String? subTitle;
+  final List<Widget> actions;
+  final EdgeInsets? padding;
+  final double? space;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
+  Widget build(BuildContext context) => Container(
       alignment: Alignment.centerLeft,
-      padding:
-          padding ??
-          const EdgeInsets.only(left: 16, right: 8, top: 24, bottom: 8),
+      padding: padding ??
+          const EdgeInsets.only(
+            left: 16,
+            right: 8,
+            top: 24,
+            bottom: 8,
+          ),
       child: Row(
         mainAxisSize: MainAxisSize.max,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -486,18 +464,19 @@ class ListHeader extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurfaceVariant.opacity80,
-                    fontWeight: FontWeight.w600,
-                  ),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurfaceVariant
+                            .opacity80,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 if (subTitle != null)
                   Text(
                     subTitle!,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                   ),
               ],
             ),
@@ -505,12 +484,16 @@ class ListHeader extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [...genActions(actions, space: space)],
+            children: [
+              ...genActions(
+                actions,
+                space: space,
+              ),
+            ],
           ),
         ],
       ),
     );
-  }
 }
 
 List<Widget> generateSection({
@@ -520,11 +503,18 @@ List<Widget> generateSection({
   bool separated = true,
 }) {
   final genItems = separated
-      ? items.separated(const Divider(height: 0))
+      ? items.separated(
+          const Divider(
+            height: 0,
+          ),
+        )
       : items;
   return [
     if (items.isNotEmpty && title != null)
-      ListHeader(title: title, actions: actions),
+      ListHeader(
+        title: title,
+        actions: actions,
+      ),
     ...genItems,
   ];
 }
@@ -534,19 +524,24 @@ Widget generateSectionV2({
   required Iterable<Widget> items,
   List<Widget>? actions,
   bool separated = true,
-}) {
-  return Column(
+}) => Column(
     children: [
       if (items.isNotEmpty && title != null)
-        ListHeader(title: title, actions: actions),
+        ListHeader(
+          title: title,
+          actions: actions,
+        ),
       CommonCard(
         radius: 18,
         type: CommonCardType.filled,
-        child: Column(children: [...items]),
-      ),
+        child: Column(
+          children: [
+            ...items,
+          ],
+        ),
+      )
     ],
   );
-}
 
 List<Widget> generateInfoSection({
   required Info info,
@@ -555,18 +550,26 @@ List<Widget> generateInfoSection({
   bool separated = true,
 }) {
   final genItems = separated
-      ? items.separated(const Divider(height: 0))
+      ? items.separated(
+          const Divider(
+            height: 0,
+          ),
+        )
       : items;
   return [
-    if (items.isNotEmpty) InfoHeader(info: info, actions: actions),
+    if (items.isNotEmpty)
+      InfoHeader(
+        info: info,
+        actions: actions,
+      ),
     ...genItems,
   ];
 }
 
-Widget generateListView(List<Widget> items) {
-  return ListView.builder(
+Widget generateListView(List<Widget> items) => ListView.builder(
     itemCount: items.length,
     itemBuilder: (_, index) => items[index],
-    padding: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.only(
+      bottom: 16,
+    ),
   );
-}

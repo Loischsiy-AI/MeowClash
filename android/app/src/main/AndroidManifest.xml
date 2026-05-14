@@ -13,35 +13,30 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
     <application
-        android:name=".MeowClashApplication"
+        android:name=".FlClashXApplication"
+        android:banner="@mipmap/ic_banner"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="MeowClash"
-        android:banner="@drawable/tv_banner"
-        android:enableOnBackInvokedCallback="true">
+        android:label="FlClashX"
+        android:memtagMode="off">
         <activity
-            android:name="com.follow.clash.MainActivity"
+            android:name="com.follow.clashx.MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:exported="true"
             android:hardwareAccelerated="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"
             android:windowSoftInputMode="adjustResize">
-            <!-- Specifies an Android theme to apply to this Activity as soon as
-                 the Android process has started. This theme is visible to the user
-                 while the Flutter UI initializes. After that, this theme continues
-                 to determine the Window background behind the Flutter UI. -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
@@ -60,30 +55,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data android:scheme="clash" android:host="install-config" />
-                <data android:scheme="clashmeta" android:host="install-config" />
-                <data android:scheme="meowclash" android:host="install-config" />
+                <data android:scheme="clash" />
+                <data android:scheme="flclash" />
+                <data android:scheme="flclashx" />
+
+                <data android:host="install-config" />
             </intent-filter>
         </activity>
 
-        <!-- Light icon alias -->
-        <activity-alias
-            android:name="com.follow.clash.MainActivityLight"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_light"
-            android:roundIcon="@mipmap/ic_launcher_round_light"
-            android:targetActivity="com.follow.clash.MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-            <!-- Tile long-press intent -->
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
-            </intent-filter>
-        </activity-alias>
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="true" />
 
         <activity
             android:name=".TempActivity"
@@ -92,16 +74,51 @@
             <intent-filter>
                 <category android:name="android.intent.category.DEFAULT" />
                 <action android:name="${applicationId}.action.START" />
+            </intent-filter>
+            <intent-filter>
+                <category android:name="android.intent.category.DEFAULT" />
                 <action android:name="${applicationId}.action.STOP" />
+            </intent-filter>
+            <intent-filter>
+                <category android:name="android.intent.category.DEFAULT" />
                 <action android:name="${applicationId}.action.CHANGE" />
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".widgets.ModeWidgetProvider"
+            android:exported="false"
+            android:label="@string/fl_clashx">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.follow.clashx.widget.ACTION_TOGGLE" />
+                <action android:name="com.follow.clashx.widget.ACTION_MODE_RULE" />
+                <action android:name="com.follow.clashx.widget.ACTION_MODE_GLOBAL" />
+                <action android:name="com.follow.clashx.widget.ACTION_MODE_DIRECT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_mode_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.OnOffWidgetProvider"
+            android:exported="false"
+            android:label="@string/fl_clashx">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.follow.clashx.widget.ACTION_ONOFF_TOGGLE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_on_off_info" />
+        </receiver>
+
         <service
-            android:name=".services.MeowClashTileService"
+            android:name=".services.FlClashXTileService"
             android:exported="true"
-            android:icon="@drawable/ic_tile"
-            android:label="MeowClash"
+            android:icon="@drawable/ic"
+            android:label="FlClashX"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             tools:targetApi="n">
             <intent-filter>
@@ -133,41 +150,28 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-
+        
         <service
-            android:name=".services.MeowClashVpnService"
+            android:name=".services.FlClashXVpnService"
             android:exported="false"
-            android:foregroundServiceType="specialUse"
+            android:foregroundServiceType="dataSync"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
-            <meta-data android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON" android:value="true" />
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="VPN" />
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
         </service>
 
         <service
-            android:name=".services.MeowClashService"
+            android:name=".services.FlClashXService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Proxy" />
+            android:foregroundServiceType="dataSync">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="service" />
         </service>
-
-        <receiver
-            android:name=".receivers.BootReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-        
-        <receiver
-            android:name=".receivers.PackageReplacedReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
 
         <meta-data
             android:name="flutterEmbedding"

@@ -1,16 +1,16 @@
 import 'dart:typed_data';
 
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/common/dav_client.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/providers/config.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/dialog.dart';
-import 'package:meow_clash/widgets/fade_box.dart';
-import 'package:meow_clash/widgets/input.dart';
-import 'package:meow_clash/widgets/list.dart';
-import 'package:meow_clash/widgets/text.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/common/dav_client.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/providers/config.dart';
+import 'package:flclashx/state.dart';
+import 'package:flclashx/widgets/dialog.dart';
+import 'package:flclashx/widgets/fade_box.dart';
+import 'package:flclashx/widgets/input.dart';
+import 'package:flclashx/widgets/list.dart';
+import 'package:flclashx/widgets/text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -20,17 +20,19 @@ class BackupAndRecovery extends ConsumerWidget {
 
   Future<void> _showAddWebDAV(DAV? dav) async {
     await globalState.showCommonDialog<String>(
-      child: WebDAVFormDialog(dav: dav?.copyWith()),
+      child: WebDAVFormDialog(
+        dav: dav?.copyWith(),
+      ),
     );
   }
 
-  Future<void> _backupOnWebDAV(DAVClient client) async {
-    final res = await globalState.appController.safeRun<bool>(
+  Future<void> _backupOnWebDAV(BuildContext context, DAVClient client) async {
+    final commonScaffoldState = context.commonScaffoldState;
+    final res = await commonScaffoldState?.loadingRun<bool>(
       () async {
         final backupData = await globalState.appController.backupData();
-        return await client.backup(Uint8List.fromList(backupData));
+        return client.backup(Uint8List.fromList(backupData));
       },
-      needLoading: true,
       title: appLocalizations.backup,
     );
     if (res != true) return;
@@ -45,13 +47,13 @@ class BackupAndRecovery extends ConsumerWidget {
     DAVClient client,
     RecoveryOption recoveryOption,
   ) async {
-    final res = await globalState.appController.safeRun<bool>(
+    final commonScaffoldState = context.commonScaffoldState;
+    final res = await commonScaffoldState?.loadingRun<bool>(
       () async {
         final data = await client.recovery();
         await globalState.appController.recoveryData(data, recoveryOption);
         return true;
       },
-      needLoading: true,
       title: appLocalizations.recovery,
     );
     if (res != true) return;
@@ -61,10 +63,7 @@ class BackupAndRecovery extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleRecoveryOnWebDAV(
-    BuildContext context,
-    DAVClient client,
-  ) async {
+  Future<void> _handleRecoveryOnWebDAV(BuildContext context, DAVClient client) async {
     final recoveryOption = await globalState.showCommonDialog<RecoveryOption>(
       child: const RecoveryOptionsDialog(),
     );
@@ -73,15 +72,19 @@ class BackupAndRecovery extends ConsumerWidget {
   }
 
   Future<void> _backupOnLocal(BuildContext context) async {
-    final res = await globalState.appController.safeRun<bool>(() async {
-      final backupData = await globalState.appController.backupData();
-      final value = await picker.saveFile(
-        utils.getBackupFileName(),
-        Uint8List.fromList(backupData),
-      );
-      if (value == null) return false;
-      return true;
-    }, title: appLocalizations.backup);
+    final commonScaffoldState = context.commonScaffoldState;
+    final res = await commonScaffoldState?.loadingRun<bool>(
+      () async {
+        final backupData = await globalState.appController.backupData();
+        final value = await picker.saveFile(
+          utils.getBackupFileName(),
+          Uint8List.fromList(backupData),
+        );
+        if (value == null) return false;
+        return true;
+      },
+      title: appLocalizations.backup,
+    );
     if (res != true) return;
     globalState.showMessage(
       title: appLocalizations.backup,
@@ -89,27 +92,22 @@ class BackupAndRecovery extends ConsumerWidget {
     );
   }
 
-  Future<void> _recoveryOnLocal(RecoveryOption recoveryOption) async {
-    final file = await picker.pickerFile(withData: false);
-    final path = file?.path;
-    final res = await globalState.appController.safeRun<bool>(
+  Future<void> _recoveryOnLocal(
+    BuildContext context,
+    RecoveryOption recoveryOption,
+  ) async {
+    final file = await picker.pickerFile();
+    final data = file?.bytes;
+    if (data == null || !context.mounted) return;
+    final commonScaffoldState = context.commonScaffoldState;
+    final res = await commonScaffoldState?.loadingRun<bool>(
       () async {
-        if (path != null) {
-          await globalState.appController.recoveryDataFromFile(
-            path,
-            recoveryOption,
-          );
-        } else if (file?.bytes != null) {
-          await globalState.appController.recoveryData(
-            List<int>.from(file!.bytes!),
-            recoveryOption,
-          );
-        } else {
-          return false;
-        }
+        await globalState.appController.recoveryData(
+          List<int>.from(data),
+          recoveryOption,
+        );
         return true;
       },
-      needLoading: true,
       title: appLocalizations.recovery,
     );
     if (res != true) return;
@@ -124,40 +122,46 @@ class BackupAndRecovery extends ConsumerWidget {
       child: const RecoveryOptionsDialog(),
     );
     if (recoveryOption == null || !context.mounted) return;
-    _recoveryOnLocal(recoveryOption);
+    _recoveryOnLocal(context, recoveryOption);
   }
 
   void _handleChange(String? value, WidgetRef ref) {
     if (value == null) {
       return;
     }
-    ref
-        .read(appDAVSettingProvider.notifier)
-        .updateState((state) => state?.copyWith(fileName: value));
+    ref.read(appDAVSettingProvider.notifier).updateState(
+          (state) => state?.copyWith(
+            fileName: value,
+          ),
+        );
   }
 
   Future<void> _handleUpdateRecoveryStrategy(WidgetRef ref) async {
-    final recoveryStrategy = ref.read(
-      appSettingProvider.select((state) => state.recoveryStrategy),
-    );
+    final recoveryStrategy = ref.read(appSettingProvider.select(
+      (state) => state.recoveryStrategy,
+    ));
     final res = await globalState.showCommonDialog(
       child: OptionsDialog<RecoveryStrategy>(
         title: appLocalizations.recoveryStrategy,
         options: RecoveryStrategy.values,
-        textBuilder: (mode) => Intl.message('recoveryStrategy_${mode.name}'),
+        textBuilder: (mode) => Intl.message(
+          "recoveryStrategy_${mode.name}",
+        ),
         value: recoveryStrategy,
       ),
     );
     if (res == null) {
       return;
     }
-    ref
-        .read(appSettingProvider.notifier)
-        .updateState((state) => state.copyWith(recoveryStrategy: res));
+    ref.read(appSettingProvider.notifier).updateState(
+          (state) => state.copyWith(
+            recoveryStrategy: res,
+          ),
+        );
   }
 
   @override
-  Widget build(BuildContext context, ref) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dav = ref.watch(appDAVSettingProvider);
     final client = dav != null ? DAVClient(dav) : null;
     return ListView(
@@ -172,7 +176,9 @@ class BackupAndRecovery extends ConsumerWidget {
               onPressed: () {
                 _showAddWebDAV(dav);
               },
-              child: Text(appLocalizations.bind),
+              child: Text(
+                appLocalizations.bind,
+              ),
             ),
           )
         else ...[
@@ -193,31 +199,29 @@ class BackupAndRecovery extends ConsumerWidget {
                   Text(appLocalizations.connectivity),
                   FutureBuilder<bool>(
                     future: client!.pingCompleter.future,
-                    builder: (_, snapshot) {
-                      return Center(
+                    builder: (_, snapshot) => Center(
                         child: FadeThroughBox(
                           child:
                               snapshot.connectionState != ConnectionState.done
-                              ? const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1,
-                                  ),
-                                )
-                              : Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: snapshot.data == true
-                                        ? Colors.green
-                                        : Colors.red,
-                                  ),
-                                  width: 12,
-                                  height: 12,
-                                ),
+                                  ? const SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1,
+                                      ),
+                                    )
+                                  : Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: snapshot.data == true
+                                            ? Colors.green
+                                            : Colors.red,
+                                      ),
+                                      width: 12,
+                                      height: 12,
+                                    ),
                         ),
-                      );
-                    },
+                      ),
                   ),
                 ],
               ),
@@ -226,10 +230,14 @@ class BackupAndRecovery extends ConsumerWidget {
               onPressed: () {
                 _showAddWebDAV(dav);
               },
-              child: Text(appLocalizations.edit),
+              child: Text(
+                appLocalizations.edit,
+              ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(
+            height: 4,
+          ),
           ListItem.input(
             title: Text(appLocalizations.file),
             subtitle: Text(dav.fileName),
@@ -244,7 +252,7 @@ class BackupAndRecovery extends ConsumerWidget {
           ),
           ListItem(
             onTap: () {
-              _backupOnWebDAV(client);
+              _backupOnWebDAV(context, client);
             },
             title: Text(appLocalizations.backup),
             subtitle: Text(appLocalizations.remoteBackupDesc),
@@ -273,27 +281,25 @@ class BackupAndRecovery extends ConsumerWidget {
           subtitle: Text(appLocalizations.localRecoveryDesc),
         ),
         ListHeader(title: appLocalizations.options),
-        Consumer(
-          builder: (_, ref, _) {
-            final recoveryStrategy = ref.watch(
-              appSettingProvider.select((state) => state.recoveryStrategy),
-            );
-            return ListItem(
-              onTap: () {
+        Consumer(builder: (_, ref, __) {
+          final recoveryStrategy = ref.watch(appSettingProvider.select(
+            (state) => state.recoveryStrategy,
+          ));
+          return ListItem(
+            onTap: () {
+              _handleUpdateRecoveryStrategy(ref);
+            },
+            title: Text(appLocalizations.recoveryStrategy),
+            trailing: FilledButton(
+              onPressed: () {
                 _handleUpdateRecoveryStrategy(ref);
               },
-              title: Text(appLocalizations.recoveryStrategy),
-              trailing: FilledButton(
-                onPressed: () {
-                  _handleUpdateRecoveryStrategy(ref);
-                },
-                child: Text(
-                  Intl.message('recoveryStrategy_${recoveryStrategy.name}'),
-                ),
+              child: Text(
+                Intl.message("recoveryStrategy_${recoveryStrategy.name}"),
               ),
-            );
-          },
-        ),
+            ),
+          );
+        }),
       ],
     );
   }
@@ -313,10 +319,12 @@ class _RecoveryOptionsDialogState extends State<RecoveryOptionsDialog> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return CommonDialog(
+  Widget build(BuildContext context) => CommonDialog(
       title: appLocalizations.recovery,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 16,
+      ),
       child: Wrap(
         children: [
           ListItem(
@@ -330,17 +338,16 @@ class _RecoveryOptionsDialogState extends State<RecoveryOptionsDialog> {
               _handleOnTab(RecoveryOption.all);
             },
             title: Text(appLocalizations.recoveryAll),
-          ),
+          )
         ],
       ),
     );
-  }
 }
 
 class WebDAVFormDialog extends ConsumerStatefulWidget {
-  final DAV? dav;
 
   const WebDAVFormDialog({super.key, this.dav});
+  final DAV? dav;
 
   @override
   ConsumerState<WebDAVFormDialog> createState() => _WebDAVFormDialogState();
@@ -383,13 +390,18 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return CommonDialog(
+  Widget build(BuildContext context) => CommonDialog(
       title: appLocalizations.webDAVConfiguration,
       actions: [
         if (widget.dav != null)
-          TextButton(onPressed: _delete, child: Text(appLocalizations.delete)),
-        TextButton(onPressed: _submit, child: Text(appLocalizations.save)),
+          TextButton(
+            onPressed: _delete,
+            child: Text(appLocalizations.delete),
+          ),
+        TextButton(
+          onPressed: _submit,
+          child: Text(appLocalizations.save),
+        )
       ],
       child: Form(
         key: _formKey,
@@ -406,7 +418,7 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
                 labelText: appLocalizations.address,
                 helperText: appLocalizations.addressHelp,
               ),
-              validator: (String? value) {
+              validator: (value) {
                 if (value == null || value.isEmpty || !value.isUrl) {
                   return appLocalizations.addressTip;
                 }
@@ -420,7 +432,7 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
                 border: const OutlineInputBorder(),
                 labelText: appLocalizations.account,
               ),
-              validator: (String? value) {
+              validator: (value) {
                 if (value == null || value.isEmpty) {
                   return appLocalizations.emptyTip(appLocalizations.account);
                 }
@@ -429,8 +441,7 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
             ),
             ValueListenableBuilder(
               valueListenable: _obscureController,
-              builder: (_, obscure, _) {
-                return TextFormField(
+              builder: (_, obscure, __) => TextFormField(
                   controller: passwordController,
                   obscureText: obscure,
                   decoration: InputDecoration(
@@ -446,20 +457,17 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
                     ),
                     labelText: appLocalizations.password,
                   ),
-                  validator: (String? value) {
+                  validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return appLocalizations.emptyTip(
-                        appLocalizations.password,
-                      );
+                      return appLocalizations
+                          .emptyTip(appLocalizations.password);
                     }
                     return null;
                   },
-                );
-              },
+                ),
             ),
           ],
         ),
       ),
     );
-  }
 }

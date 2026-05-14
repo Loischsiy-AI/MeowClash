@@ -1,29 +1,34 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/models/models.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/models/models.dart';
 import 'package:flutter/material.dart';
 
 class SubscriptionInfoView extends StatelessWidget {
-  final SubscriptionInfo? subscriptionInfo;
 
-  const SubscriptionInfoView({super.key, this.subscriptionInfo});
+  const SubscriptionInfoView({
+    super.key,
+    this.subscriptionInfo,
+  });
+  final SubscriptionInfo? subscriptionInfo;
 
   @override
   Widget build(BuildContext context) {
     if (subscriptionInfo == null) {
       return Container();
     }
-
-    final use = subscriptionInfo!.upload + subscriptionInfo!.download;
-    final total = subscriptionInfo!.total;
-
-    // No traffic info
-    if (use == 0 && total == 0) {
+    if (subscriptionInfo?.total == 0) {
       return Container();
     }
+    final use = subscriptionInfo!.upload + subscriptionInfo!.download;
+    final total = subscriptionInfo!.total;
+    final progress = use / total;
 
-    // Show progress bar
-    final progress = total > 0 ? use / total : 0.0;
-
+    final useShow = TrafficValue(value: use).show;
+    final totalShow = TrafficValue(value: total).show;
+    final expireShow = subscriptionInfo?.expire != null &&
+            subscriptionInfo!.expire != 0
+        ? DateTime.fromMillisecondsSinceEpoch(subscriptionInfo!.expire * 1000)
+            .show
+        : appLocalizations.infiniteTime;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -32,7 +37,16 @@ class SubscriptionInfoView extends StatelessWidget {
           value: progress,
           backgroundColor: context.colorScheme.primary.opacity15,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(
+          height: 8,
+        ),
+        Text(
+          "$useShow / $totalShow · $expireShow",
+          style: context.textTheme.labelMedium?.toLight,
+        ),
+        const SizedBox(
+          height: 4,
+        ),
       ],
     );
   }

@@ -1,6 +1,6 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:flutter/services.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'common.dart';
@@ -11,7 +11,7 @@ part 'generated/app.freezed.dart';
 typedef DelayMap = Map<String, Map<String, int?>>;
 
 @freezed
-abstract class AppState with _$AppState {
+class AppState with _$AppState {
   const factory AppState({
     @Default(false) bool isInit,
     @Default(false) bool backBlock,
@@ -22,18 +22,17 @@ abstract class AppState with _$AppState {
     @Default({}) DelayMap delayMap,
     @Default([]) List<Group> groups,
     @Default(0) int checkIpNum,
-    required Brightness brightness,
+    Brightness? brightness,
     int? runTime,
     @Default([]) List<ExternalProvider> providers,
     String? localIp,
-    required FixedList<TrackerInfo> requests,
+    required FixedList<Connection> requests,
     required int version,
     required FixedList<Log> logs,
     required FixedList<Traffic> traffics,
     required Traffic totalTraffic,
+    @Default("") String proxiesQuery,
     @Default(false) bool realTunEnable,
-    @Default(false) bool loading,
-    required SystemUiOverlayStyle systemUiOverlayStyle,
   }) = _AppState;
 }
 

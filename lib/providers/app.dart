@@ -1,8 +1,8 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/state.dart';
-import 'package:flutter/services.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/state.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -11,126 +11,60 @@ part 'generated/app.g.dart';
 @riverpod
 class RealTunEnable extends _$RealTunEnable with AutoDisposeNotifierMixin {
   @override
-  bool build() {
-    return globalState.appState.realTunEnable;
-  }
+  bool build() => globalState.appState.realTunEnable;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(realTunEnable: value);
+  void onUpdate(bool value) {
+    globalState.appState = globalState.appState.copyWith(
+      realTunEnable: value,
+    );
   }
 }
 
 @riverpod
 class Logs extends _$Logs with AutoDisposeNotifierMixin {
   @override
-  FixedList<Log> build() {
-    return globalState.appState.logs;
-  }
+  FixedList<Log> build() => globalState.appState.logs;
 
   void addLog(Log value) {
     state = state.copyWith()..add(value);
   }
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(logs: value);
-  }
-
-  void clearLogs() {
-    state = FixedList(maxLength);
+  void onUpdate(FixedList<Log> value) {
+    globalState.appState = globalState.appState.copyWith(
+      logs: value,
+    );
   }
 }
-
-// Search and filter providers for logs
-final logsSearchProvider = StateProvider<String>((ref) => '');
-final logsKeywordsProvider = StateProvider<List<String>>((ref) => []);
-
-final filteredLogsProvider = Provider<List<Log>>((ref) {
-  final logs = ref.watch(logsProvider.select((s) => s.list));
-  final query = ref.watch(logsSearchProvider).toLowerCase();
-  final keywords = ref.watch(logsKeywordsProvider);
-
-  return logs.where((item) {
-    if (query.isNotEmpty) {
-      final matchesQuery = item.payload.toLowerCase().contains(query) ||
-          item.logLevel.name.toLowerCase().contains(query) ||
-          item.dateTime.toLowerCase().contains(query);
-      if (!matchesQuery) return false;
-    }
-    if (keywords.isNotEmpty) {
-      final itemStr = '${item.payload} ${item.logLevel.name} ${item.dateTime}'.toLowerCase();
-      final matchesKeywords = keywords.every((keyword) => itemStr.contains(keyword.toLowerCase()));
-      if (!matchesKeywords) return false;
-    }
-    return true;
-  }).toList();
-});
 
 @riverpod
 class Requests extends _$Requests with AutoDisposeNotifierMixin {
   @override
-  FixedList<TrackerInfo> build() {
-    return globalState.appState.requests;
-  }
+  FixedList<Connection> build() => globalState.appState.requests;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(requests: value);
+  void onUpdate(FixedList<Connection> value) {
+    globalState.appState = globalState.appState.copyWith(
+      requests: value,
+    );
   }
 
-  void addRequest(TrackerInfo value) {
+  void addRequest(Connection value) {
     state = state.copyWith()..add(value);
   }
-
-  void clearRequests() {
-    state = FixedList(maxLength);
-  }
 }
-
-// Search and filter providers for requests
-final requestsSearchProvider = StateProvider<String>((ref) => '');
-final requestsKeywordsProvider = StateProvider<List<String>>((ref) => []);
-
-final filteredRequestsProvider = Provider<List<TrackerInfo>>((ref) {
-  final requests = ref.watch(requestsProvider.select((s) => s.list));
-  final query = ref.watch(requestsSearchProvider).toLowerCase().trim();
-  final keywords = ref.watch(requestsKeywordsProvider);
-
-  return requests.where((item) {
-    if (query.isNotEmpty) {
-      final networkText = item.metadata.network.toLowerCase();
-      final hostText = item.metadata.host.toLowerCase();
-      final destinationIPText = item.metadata.destinationIP.toLowerCase();
-      final processText = item.metadata.process.toLowerCase();
-      final chainsText = item.chains.join('').toLowerCase();
-      final matchesQuery = networkText.contains(query) ||
-          hostText.contains(query) ||
-          destinationIPText.contains(query) ||
-          processText.contains(query) ||
-          chainsText.contains(query);
-      if (!matchesQuery) return false;
-    }
-    if (keywords.isNotEmpty) {
-      final chains = item.chains;
-      final process = item.metadata.process;
-      final matchesKeywords = {...chains, process}.containsAll(keywords);
-      if (!matchesKeywords) return false;
-    }
-    return true;
-  }).toList();
-});
 
 @riverpod
 class Providers extends _$Providers with AutoDisposeNotifierMixin {
   @override
-  List<ExternalProvider> build() {
-    return globalState.appState.providers;
-  }
+  List<ExternalProvider> build() => globalState.appState.providers;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(providers: value);
+  void onUpdate(List<ExternalProvider> value) {
+    globalState.appState = globalState.appState.copyWith(
+      providers: value,
+    );
   }
 
   void setProvider(ExternalProvider? provider) {
@@ -144,30 +78,29 @@ class Providers extends _$Providers with AutoDisposeNotifierMixin {
 @riverpod
 class Packages extends _$Packages with AutoDisposeNotifierMixin {
   @override
-  List<Package> build() {
-    return globalState.appState.packages;
-  }
+  List<Package> build() => globalState.appState.packages;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(packages: value);
+  void onUpdate(List<Package> value) {
+    globalState.appState = globalState.appState.copyWith(
+      packages: value,
+    );
   }
 }
 
 @riverpod
-class SystemBrightness extends _$SystemBrightness
-    with AutoDisposeNotifierMixin {
+class AppBrightness extends _$AppBrightness with AutoDisposeNotifierMixin {
   @override
-  Brightness build() {
-    return globalState.appState.brightness;
-  }
+  Brightness? build() => globalState.appState.brightness;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(brightness: value);
+  void onUpdate(Brightness? value) {
+    globalState.appState = globalState.appState.copyWith(
+      brightness: value,
+    );
   }
 
-  void setState(Brightness value) {
+  void setState(Brightness? value) {
     state = value;
   }
 }
@@ -175,13 +108,13 @@ class SystemBrightness extends _$SystemBrightness
 @riverpod
 class Traffics extends _$Traffics with AutoDisposeNotifierMixin {
   @override
-  FixedList<Traffic> build() {
-    return globalState.appState.traffics;
-  }
+  FixedList<Traffic> build() => globalState.appState.traffics;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(traffics: value);
+  void onUpdate(FixedList<Traffic> value) {
+    globalState.appState = globalState.appState.copyWith(
+      traffics: value,
+    );
   }
 
   void addTraffic(Traffic value) {
@@ -196,62 +129,62 @@ class Traffics extends _$Traffics with AutoDisposeNotifierMixin {
 @riverpod
 class TotalTraffic extends _$TotalTraffic with AutoDisposeNotifierMixin {
   @override
-  Traffic build() {
-    return globalState.appState.totalTraffic;
-  }
+  Traffic build() => globalState.appState.totalTraffic;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(totalTraffic: value);
+  void onUpdate(Traffic value) {
+    globalState.appState = globalState.appState.copyWith(
+      totalTraffic: value,
+    );
   }
 }
 
 @riverpod
 class LocalIp extends _$LocalIp with AutoDisposeNotifierMixin {
   @override
-  String? build() {
-    return globalState.appState.localIp;
-  }
+  String? build() => globalState.appState.localIp;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(localIp: value);
+  void onUpdate(String? value) {
+    globalState.appState = globalState.appState.copyWith(
+      localIp: value,
+    );
   }
 
   @override
   set state(String? value) {
     super.state = value;
-    globalState.appState = globalState.appState.copyWith(localIp: state);
+    globalState.appState = globalState.appState.copyWith(
+      localIp: state,
+    );
   }
 }
 
 @riverpod
 class RunTime extends _$RunTime with AutoDisposeNotifierMixin {
   @override
-  int? build() {
-    return globalState.appState.runTime;
-  }
+  int? build() => globalState.appState.runTime;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(runTime: value);
+  void onUpdate(int? value) {
+    globalState.appState = globalState.appState.copyWith(
+      runTime: value,
+    );
   }
 
-  bool get isStart {
-    return state != null;
-  }
+  bool get isStart => state != null;
 }
 
 @riverpod
 class ViewSize extends _$ViewSize with AutoDisposeNotifierMixin {
   @override
-  Size build() {
-    return globalState.appState.viewSize;
-  }
+  Size build() => globalState.appState.viewSize;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(viewSize: value);
+  void onUpdate(Size value) {
+    globalState.appState = globalState.appState.copyWith(
+      viewSize: value,
+    );
   }
 
   ViewMode get viewMode => utils.getViewMode(state.width);
@@ -260,41 +193,27 @@ class ViewSize extends _$ViewSize with AutoDisposeNotifierMixin {
 }
 
 @riverpod
-double viewWidth(Ref ref) {
-  return ref.watch(viewSizeProvider).width;
-}
+double viewWidth(Ref ref) => ref.watch(viewSizeProvider).width;
 
 @riverpod
-ViewMode viewMode(Ref ref) {
-  if (globalState.isAndroidTV) {
-    return ViewMode.mobile;
-  }
-  return utils.getViewMode(ref.watch(viewWidthProvider));
-}
+ViewMode viewMode(Ref ref) => utils.getViewMode(ref.watch(viewWidthProvider));
 
 @riverpod
-bool isMobileView(Ref ref) {
-  if (globalState.isAndroidTV) {
-    return true;
-  }
-  return ref.watch(viewModeProvider) == ViewMode.mobile;
-}
+bool isMobileView(Ref ref) => ref.watch(viewModeProvider) == ViewMode.mobile;
 
 @riverpod
-double viewHeight(Ref ref) {
-  return ref.watch(viewSizeProvider).height;
-}
+double viewHeight(Ref ref) => ref.watch(viewSizeProvider).height;
 
 @riverpod
 class Init extends _$Init with AutoDisposeNotifierMixin {
   @override
-  bool build() {
-    return globalState.appState.isInit;
-  }
+  bool build() => globalState.appState.isInit;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(isInit: value);
+  void onUpdate(bool value) {
+    globalState.appState = globalState.appState.copyWith(
+      isInit: value,
+    );
   }
 }
 
@@ -302,26 +221,26 @@ class Init extends _$Init with AutoDisposeNotifierMixin {
 class CurrentPageLabel extends _$CurrentPageLabel
     with AutoDisposeNotifierMixin {
   @override
-  PageLabel build() {
-    return globalState.appState.pageLabel;
-  }
+  PageLabel build() => globalState.appState.pageLabel;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(pageLabel: value);
+  void onUpdate(PageLabel value) {
+    globalState.appState = globalState.appState.copyWith(
+      pageLabel: value,
+    );
   }
 }
 
 @riverpod
 class SortNum extends _$SortNum with AutoDisposeNotifierMixin {
   @override
-  int build() {
-    return globalState.appState.sortNum;
-  }
+  int build() => globalState.appState.sortNum;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(sortNum: value);
+  void onUpdate(int value) {
+    globalState.appState = globalState.appState.copyWith(
+      sortNum: value,
+    );
   }
 
   int add() => state++;
@@ -330,13 +249,13 @@ class SortNum extends _$SortNum with AutoDisposeNotifierMixin {
 @riverpod
 class CheckIpNum extends _$CheckIpNum with AutoDisposeNotifierMixin {
   @override
-  int build() {
-    return globalState.appState.checkIpNum;
-  }
+  int build() => globalState.appState.checkIpNum;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(checkIpNum: value);
+  void onUpdate(int value) {
+    globalState.appState = globalState.appState.copyWith(
+      checkIpNum: value,
+    );
   }
 
   int add() => state++;
@@ -345,72 +264,59 @@ class CheckIpNum extends _$CheckIpNum with AutoDisposeNotifierMixin {
 @riverpod
 class BackBlock extends _$BackBlock with AutoDisposeNotifierMixin {
   @override
-  bool build() {
-    return globalState.appState.backBlock;
-  }
+  bool build() => globalState.appState.backBlock;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(backBlock: value);
-  }
-}
-
-@riverpod
-class Loading extends _$Loading with AutoDisposeNotifierMixin {
-  @override
-  bool build() {
-    return globalState.appState.loading;
-  }
-
-  @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(loading: value);
+  void onUpdate(bool value) {
+    globalState.appState = globalState.appState.copyWith(
+      backBlock: value,
+    );
   }
 }
 
 @riverpod
 class Version extends _$Version with AutoDisposeNotifierMixin {
   @override
-  int build() {
-    return globalState.appState.version;
-  }
+  int build() => globalState.appState.version;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(version: value);
+  void onUpdate(int value) {
+    globalState.appState = globalState.appState.copyWith(
+      version: value,
+    );
   }
 }
 
 @riverpod
 class Groups extends _$Groups with AutoDisposeNotifierMixin {
   @override
-  List<Group> build() {
-    return globalState.appState.groups;
-  }
+  List<Group> build() => globalState.appState.groups;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(groups: value);
+  void onUpdate(List<Group> value) {
+    globalState.appState = globalState.appState.copyWith(
+      groups: value,
+    );
   }
 }
 
 @riverpod
 class DelayDataSource extends _$DelayDataSource with AutoDisposeNotifierMixin {
   @override
-  DelayMap build() {
-    return globalState.appState.delayMap;
-  }
+  DelayMap build() => globalState.appState.delayMap;
 
   @override
-  onUpdate(value) {
-    globalState.appState = globalState.appState.copyWith(delayMap: value);
+  void onUpdate(DelayMap value) {
+    globalState.appState = globalState.appState.copyWith(
+      delayMap: value,
+    );
   }
 
   void setDelay(Delay delay) {
     if (state[delay.url]?[delay.name] != delay.value) {
-      final DelayMap newDelayMap = Map.from(state);
+      final newDelayMap = Map<String, Map<String, int?>>.from(state);
       if (newDelayMap[delay.url] == null) {
-        newDelayMap[delay.url] = {};
+        newDelayMap[delay.url] = <String, int?>{};
       }
       newDelayMap[delay.url]![delay.name] = delay.value;
       state = newDelayMap;
@@ -419,65 +325,14 @@ class DelayDataSource extends _$DelayDataSource with AutoDisposeNotifierMixin {
 }
 
 @riverpod
-class SystemUiOverlayStyleState extends _$SystemUiOverlayStyleState
-    with AutoDisposeNotifierMixin {
+class ProxiesQuery extends _$ProxiesQuery with AutoDisposeNotifierMixin {
   @override
-  SystemUiOverlayStyle build() {
-    return globalState.appState.systemUiOverlayStyle;
-  }
+  String build() => globalState.appState.proxiesQuery;
 
   @override
-  onUpdate(value) {
+  void onUpdate(String value) {
     globalState.appState = globalState.appState.copyWith(
-      systemUiOverlayStyle: value,
+      proxiesQuery: value,
     );
   }
 }
-
-/// Provider to track if VPN was stopped by Smart Auto Stop feature.
-/// This is used to show different notification content when smart-stopped.
-@Riverpod(keepAlive: true)
-class IsSmartStopped extends _$IsSmartStopped {
-  @override
-  bool build() {
-    return false;
-  }
-
-  void set(bool value) {
-    state = value;
-  }
-}
-
-// Connections providers
-final connectionsProvider = StateProvider<List<TrackerInfo>>((ref) => []);
-final connectionsSearchProvider = StateProvider<String>((ref) => '');
-final connectionsKeywordsProvider = StateProvider<List<String>>((ref) => []);
-
-final filteredConnectionsProvider = Provider<List<TrackerInfo>>((ref) {
-  final connections = ref.watch(connectionsProvider);
-  final query = ref.watch(connectionsSearchProvider).toLowerCase().trim();
-  final keywords = ref.watch(connectionsKeywordsProvider);
-
-  return connections.where((item) {
-    if (query.isNotEmpty) {
-      final networkText = item.metadata.network.toLowerCase();
-      final hostText = item.metadata.host.toLowerCase();
-      final destinationIPText = item.metadata.destinationIP.toLowerCase();
-      final processText = item.metadata.process.toLowerCase();
-      final chainsText = item.chains.join('').toLowerCase();
-      final matchesQuery = networkText.contains(query) ||
-          hostText.contains(query) ||
-          destinationIPText.contains(query) ||
-          processText.contains(query) ||
-          chainsText.contains(query);
-      if (!matchesQuery) return false;
-    }
-    if (keywords.isNotEmpty) {
-      final chains = item.chains;
-      final process = item.metadata.process;
-      final matchesKeywords = {...chains, process}.containsAll(keywords);
-      if (!matchesKeywords) return false;
-    }
-    return true;
-  }).toList();
-});

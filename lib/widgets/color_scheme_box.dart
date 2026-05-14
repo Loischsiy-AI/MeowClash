@@ -1,4 +1,4 @@
-import 'package:meow_clash/providers/providers.dart';
+import 'package:flclashx/providers/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,9 +6,6 @@ import 'card.dart';
 import 'grid.dart';
 
 class ColorSchemeBox extends StatelessWidget {
-  final Color? primaryColor;
-  final bool? isSelected;
-  final void Function()? onPressed;
 
   const ColorSchemeBox({
     super.key,
@@ -16,10 +13,12 @@ class ColorSchemeBox extends StatelessWidget {
     this.onPressed,
     this.isSelected,
   });
+  final Color? primaryColor;
+  final bool? isSelected;
+  final void Function()? onPressed;
 
   @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
+  Widget build(BuildContext context) => AspectRatio(
       aspectRatio: 1,
       child: PrimaryColorBox(
         primaryColor: primaryColor,
@@ -47,16 +46,22 @@ class ColorSchemeBox extends StatelessWidget {
                           children: [
                             GridItem(
                               mainAxisCellCount: 2,
-                              child: Container(color: colorScheme.primary),
+                              child: Container(
+                                color: colorScheme.primary,
+                              ),
                             ),
                             GridItem(
                               mainAxisCellCount: 1,
-                              child: Container(color: colorScheme.secondary),
+                              child: Container(
+                                color: colorScheme.secondary,
+                              ),
                             ),
                             GridItem(
                               mainAxisCellCount: 1,
-                              child: Container(color: colorScheme.tertiary),
-                            ),
+                              child: Container(
+                                color: colorScheme.tertiary,
+                              ),
+                            )
                           ],
                         ),
                       ),
@@ -67,43 +72,43 @@ class ColorSchemeBox extends StatelessWidget {
                   const Positioned(
                     bottom: 4,
                     right: 4,
-                    child: Icon(Icons.colorize, size: 20),
-                  ),
+                    child: Icon(
+                      Icons.colorize,
+                      size: 20,
+                    ),
+                  )
               ],
             );
           },
         ),
       ),
     );
-  }
 }
 
 class PrimaryColorBox extends ConsumerWidget {
-  final Color? primaryColor;
-  final Widget child;
-  final Brightness? brightness;
-  final bool ignoreConfig;
 
   const PrimaryColorBox({
     super.key,
     required this.primaryColor,
     required this.child,
-    this.brightness,
-    this.ignoreConfig = true,
   });
+  final Color? primaryColor;
+  final Widget child;
 
   @override
-  Widget build(BuildContext context, ref) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final themeData = Theme.of(context);
     final colorScheme = ref.watch(
       genColorSchemeProvider(
-        brightness ?? themeData.brightness,
+        themeData.brightness,
         color: primaryColor,
-        ignoreConfig: ignoreConfig,
+        ignoreConfig: true,
       ),
     );
     return Theme(
-      data: themeData.copyWith(colorScheme: colorScheme),
+      data: themeData.copyWith(
+        colorScheme: colorScheme,
+      ),
       child: child,
     );
   }

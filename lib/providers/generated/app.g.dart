@@ -6,16 +6,15 @@ part of '../app.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$viewWidthHash() => r'a469c3414170a6616ff3264962e7f160b2edceca';
+String _$viewWidthHash() => r'9146f7abb3cfbc0e4fa3964048ffa3c4ad357401';
 
 /// See also [viewWidth].
 @ProviderFor(viewWidth)
 final viewWidthProvider = AutoDisposeProvider<double>.internal(
   viewWidth,
   name: r'viewWidthProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$viewWidthHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$viewWidthHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
@@ -23,16 +22,15 @@ final viewWidthProvider = AutoDisposeProvider<double>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ViewWidthRef = AutoDisposeProviderRef<double>;
-String _$viewModeHash() => r'72c09e2e81bd930b7842fa78b8cf2376fd2b72c0';
+String _$viewModeHash() => r'236563f82bfd701a67ad8ecade5bebc66c3eafb0';
 
 /// See also [viewMode].
 @ProviderFor(viewMode)
 final viewModeProvider = AutoDisposeProvider<ViewMode>.internal(
   viewMode,
   name: r'viewModeProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$viewModeHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$viewModeHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
@@ -40,16 +38,15 @@ final viewModeProvider = AutoDisposeProvider<ViewMode>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ViewModeRef = AutoDisposeProviderRef<ViewMode>;
-String _$isMobileViewHash() => r'110d5cbf01a55981c95a434c796600757118ec79';
+String _$isMobileViewHash() => r'06a1eb2f578e9d0c93d51f8ea9eca76eca99e459';
 
 /// See also [isMobileView].
 @ProviderFor(isMobileView)
 final isMobileViewProvider = AutoDisposeProvider<bool>.internal(
   isMobileView,
   name: r'isMobileViewProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$isMobileViewHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$isMobileViewHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
@@ -57,16 +54,15 @@ final isMobileViewProvider = AutoDisposeProvider<bool>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef IsMobileViewRef = AutoDisposeProviderRef<bool>;
-String _$viewHeightHash() => r'410aee5b41388226ab16737f0e85a56f7e9fe801';
+String _$viewHeightHash() => r'16dd07d16a9df1fb995b59b92019bb6f2d709ef8';
 
 /// See also [viewHeight].
 @ProviderFor(viewHeight)
 final viewHeightProvider = AutoDisposeProvider<double>.internal(
   viewHeight,
   name: r'viewHeightProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$viewHeightHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$viewHeightHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
@@ -74,354 +70,301 @@ final viewHeightProvider = AutoDisposeProvider<double>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ViewHeightRef = AutoDisposeProviderRef<double>;
-String _$realTunEnableHash() => r'a4e995c86deca4c8307966470e69d93d64a40df6';
+String _$realTunEnableHash() => r'b3c74b93184d431fff6759320f489cbd5b654e41';
 
 /// See also [RealTunEnable].
 @ProviderFor(RealTunEnable)
 final realTunEnableProvider =
     AutoDisposeNotifierProvider<RealTunEnable, bool>.internal(
-      RealTunEnable.new,
-      name: r'realTunEnableProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$realTunEnableHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  RealTunEnable.new,
+  name: r'realTunEnableProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$realTunEnableHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$RealTunEnable = AutoDisposeNotifier<bool>;
-String _$logsHash() => r'87cb2e7f7ba8c33f417f7cd9e7e5413f63821b4c';
+String _$logsHash() => r'3538f3a09a626ff33bca9d656a2abbd7d881187d';
 
 /// See also [Logs].
 @ProviderFor(Logs)
 final logsProvider = AutoDisposeNotifierProvider<Logs, FixedList<Log>>.internal(
   Logs.new,
   name: r'logsProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$logsHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$logsHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 typedef _$Logs = AutoDisposeNotifier<FixedList<Log>>;
-String _$requestsHash() => r'189635f139a05d1d3e8a23350386bba666badea4';
+String _$requestsHash() => r'3afc81585b49c41d29566486ffe055a06c21c094';
 
 /// See also [Requests].
 @ProviderFor(Requests)
 final requestsProvider =
-    AutoDisposeNotifierProvider<Requests, FixedList<TrackerInfo>>.internal(
-      Requests.new,
-      name: r'requestsProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$requestsHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+    AutoDisposeNotifierProvider<Requests, FixedList<Connection>>.internal(
+  Requests.new,
+  name: r'requestsProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$requestsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
-typedef _$Requests = AutoDisposeNotifier<FixedList<TrackerInfo>>;
-String _$providersHash() => r'4292240629a99470b2e72426dde3b9049b9b57e0';
+typedef _$Requests = AutoDisposeNotifier<FixedList<Connection>>;
+String _$providersHash() => r'6e5a8ead4da4ab74a90f8afbb6f7ae70f515ef66';
 
 /// See also [Providers].
 @ProviderFor(Providers)
 final providersProvider =
     AutoDisposeNotifierProvider<Providers, List<ExternalProvider>>.internal(
-      Providers.new,
-      name: r'providersProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$providersHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  Providers.new,
+  name: r'providersProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$providersHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$Providers = AutoDisposeNotifier<List<ExternalProvider>>;
-String _$packagesHash() => r'84bff9f5271622ed4199ecafacda8e74fa444fe2';
+String _$packagesHash() => r'de1debf8f26623b08f1aae054acc47042088fe1b';
 
 /// See also [Packages].
 @ProviderFor(Packages)
 final packagesProvider =
     AutoDisposeNotifierProvider<Packages, List<Package>>.internal(
-      Packages.new,
-      name: r'packagesProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$packagesHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  Packages.new,
+  name: r'packagesProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$packagesHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$Packages = AutoDisposeNotifier<List<Package>>;
-String _$systemBrightnessHash() => r'46eb2d23b05405723efc29480e8f258bf2d8138b';
+String _$appBrightnessHash() => r'894097aafb14bd6fd8bfcb96da8292852d753b64';
 
-/// See also [SystemBrightness].
-@ProviderFor(SystemBrightness)
-final systemBrightnessProvider =
-    AutoDisposeNotifierProvider<SystemBrightness, Brightness>.internal(
-      SystemBrightness.new,
-      name: r'systemBrightnessProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$systemBrightnessHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+/// See also [AppBrightness].
+@ProviderFor(AppBrightness)
+final appBrightnessProvider =
+    AutoDisposeNotifierProvider<AppBrightness, Brightness?>.internal(
+  AppBrightness.new,
+  name: r'appBrightnessProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$appBrightnessHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
-typedef _$SystemBrightness = AutoDisposeNotifier<Brightness>;
-String _$trafficsHash() => r'8b86eb718fed5776de174c51fd5b231957011fe6';
+typedef _$AppBrightness = AutoDisposeNotifier<Brightness?>;
+String _$trafficsHash() => r'f8e98eb936c29ba8a0e9641dff375b7268e5f9fb';
 
 /// See also [Traffics].
 @ProviderFor(Traffics)
 final trafficsProvider =
     AutoDisposeNotifierProvider<Traffics, FixedList<Traffic>>.internal(
-      Traffics.new,
-      name: r'trafficsProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$trafficsHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  Traffics.new,
+  name: r'trafficsProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$trafficsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$Traffics = AutoDisposeNotifier<FixedList<Traffic>>;
-String _$totalTrafficHash() => r'cc993ec58fa4c8ee0dbbf2e8a146f7039e818d7e';
+String _$totalTrafficHash() => r'e091247a7bdd304a314e7a1495d450ebf71e1bca';
 
 /// See also [TotalTraffic].
 @ProviderFor(TotalTraffic)
 final totalTrafficProvider =
     AutoDisposeNotifierProvider<TotalTraffic, Traffic>.internal(
-      TotalTraffic.new,
-      name: r'totalTrafficProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$totalTrafficHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  TotalTraffic.new,
+  name: r'totalTrafficProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$totalTrafficHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$TotalTraffic = AutoDisposeNotifier<Traffic>;
-String _$localIpHash() => r'2dd4afdb29db4791ebd80d976f9ea31c62959199';
+String _$localIpHash() => r'90e95c0cbb0929d327555ceeef52f49b736b54ad';
 
 /// See also [LocalIp].
 @ProviderFor(LocalIp)
 final localIpProvider = AutoDisposeNotifierProvider<LocalIp, String?>.internal(
   LocalIp.new,
   name: r'localIpProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$localIpHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$localIpHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 typedef _$LocalIp = AutoDisposeNotifier<String?>;
-String _$runTimeHash() => r'9aab44f2234590a70cbf0ff7394e496c2c97c00e';
+String _$runTimeHash() => r'ca2a53a8e3fb019997bd6a47563acc8903884a00';
 
 /// See also [RunTime].
 @ProviderFor(RunTime)
 final runTimeProvider = AutoDisposeNotifierProvider<RunTime, int?>.internal(
   RunTime.new,
   name: r'runTimeProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$runTimeHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$runTimeHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 typedef _$RunTime = AutoDisposeNotifier<int?>;
-String _$viewSizeHash() => r'07f9cce28a69d1496ba4643ef72a739312f6fc28';
+String _$viewSizeHash() => r'88b63584fcf245927a90d2a4bb52691314a4f626';
 
 /// See also [ViewSize].
 @ProviderFor(ViewSize)
 final viewSizeProvider = AutoDisposeNotifierProvider<ViewSize, Size>.internal(
   ViewSize.new,
   name: r'viewSizeProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$viewSizeHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$viewSizeHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 typedef _$ViewSize = AutoDisposeNotifier<Size>;
-String _$initHash() => r'7d3f11c8aff7a1924c5ec8886b2cd2cbdda57c3f';
+String _$initHash() => r'b38d1d56e64f0bbe970be7ec90583601a00d47f8';
 
 /// See also [Init].
 @ProviderFor(Init)
 final initProvider = AutoDisposeNotifierProvider<Init, bool>.internal(
   Init.new,
   name: r'initProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$initHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$initHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 typedef _$Init = AutoDisposeNotifier<bool>;
-String _$currentPageLabelHash() => r'a4ed13348bcd406ec3be52138cf1083106d31215';
+String _$currentPageLabelHash() => r'280552f9c5c9128bff20bb300cb7e2ef7085f2b0';
 
 /// See also [CurrentPageLabel].
 @ProviderFor(CurrentPageLabel)
 final currentPageLabelProvider =
     AutoDisposeNotifierProvider<CurrentPageLabel, PageLabel>.internal(
-      CurrentPageLabel.new,
-      name: r'currentPageLabelProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$currentPageLabelHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  CurrentPageLabel.new,
+  name: r'currentPageLabelProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$currentPageLabelHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$CurrentPageLabel = AutoDisposeNotifier<PageLabel>;
-String _$sortNumHash() => r'b67bee9fdfbb74b484190fbc6e5c3da7d773bed0';
+String _$sortNumHash() => r'556f0a051d00a8bb6333e8ed8c59a725cd4db634';
 
 /// See also [SortNum].
 @ProviderFor(SortNum)
 final sortNumProvider = AutoDisposeNotifierProvider<SortNum, int>.internal(
   SortNum.new,
   name: r'sortNumProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$sortNumHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$sortNumHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 typedef _$SortNum = AutoDisposeNotifier<int>;
-String _$checkIpNumHash() => r'4d8b32ed9c0013c056f90c9d5483f11fa5fddec5';
+String _$checkIpNumHash() => r'b2b56ae8121eff0012a1c51e1e373f76208c15fb';
 
 /// See also [CheckIpNum].
 @ProviderFor(CheckIpNum)
 final checkIpNumProvider =
     AutoDisposeNotifierProvider<CheckIpNum, int>.internal(
-      CheckIpNum.new,
-      name: r'checkIpNumProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$checkIpNumHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  CheckIpNum.new,
+  name: r'checkIpNumProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$checkIpNumHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$CheckIpNum = AutoDisposeNotifier<int>;
-String _$backBlockHash() => r'c0223e0776b72d3a8c8842fc32fdb5287353999f';
+String _$backBlockHash() => r'3a98b320c608b09ceca7e15683011b42933e633f';
 
 /// See also [BackBlock].
 @ProviderFor(BackBlock)
 final backBlockProvider = AutoDisposeNotifierProvider<BackBlock, bool>.internal(
   BackBlock.new,
   name: r'backBlockProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$backBlockHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$backBlockHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 typedef _$BackBlock = AutoDisposeNotifier<bool>;
-String _$loadingHash() => r'a0a09132a78495616785461cdc2a8b412c19b51b';
-
-/// See also [Loading].
-@ProviderFor(Loading)
-final loadingProvider = AutoDisposeNotifierProvider<Loading, bool>.internal(
-  Loading.new,
-  name: r'loadingProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$loadingHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$Loading = AutoDisposeNotifier<bool>;
-String _$versionHash() => r'8c0ee019d20df3f112c38ae4dc4abd61148d3809';
+String _$versionHash() => r'e5afb807d84e103b4a703e4c02a3d40025462b85';
 
 /// See also [Version].
 @ProviderFor(Version)
 final versionProvider = AutoDisposeNotifierProvider<Version, int>.internal(
   Version.new,
   name: r'versionProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$versionHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$versionHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 typedef _$Version = AutoDisposeNotifier<int>;
-String _$groupsHash() => r'fbff504e0bcdb5a2770a902f2867aabd921fbadc';
+String _$groupsHash() => r'46619cdd7d12f5e6f0b07f7843a82e568d2522f1';
 
 /// See also [Groups].
 @ProviderFor(Groups)
 final groupsProvider =
     AutoDisposeNotifierProvider<Groups, List<Group>>.internal(
-      Groups.new,
-      name: r'groupsProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$groupsHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  Groups.new,
+  name: r'groupsProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$groupsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$Groups = AutoDisposeNotifier<List<Group>>;
-String _$delayDataSourceHash() => r'1b94dcfdb9e1eb4c0b7ca69d933f2299d1f94ed5';
+String _$delayDataSourceHash() => r'91666223d2df243096ee164d0eab64a2393dca3b';
 
 /// See also [DelayDataSource].
 @ProviderFor(DelayDataSource)
 final delayDataSourceProvider =
     AutoDisposeNotifierProvider<DelayDataSource, DelayMap>.internal(
-      DelayDataSource.new,
-      name: r'delayDataSourceProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$delayDataSourceHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
-
-typedef _$DelayDataSource = AutoDisposeNotifier<DelayMap>;
-String _$systemUiOverlayStyleStateHash() =>
-    r'4420d92227ae617ce685c8943dda64f29f57d5d1';
-
-/// See also [SystemUiOverlayStyleState].
-@ProviderFor(SystemUiOverlayStyleState)
-final systemUiOverlayStyleStateProvider =
-    AutoDisposeNotifierProvider<
-      SystemUiOverlayStyleState,
-      SystemUiOverlayStyle
-    >.internal(
-      SystemUiOverlayStyleState.new,
-      name: r'systemUiOverlayStyleStateProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$systemUiOverlayStyleStateHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
-
-typedef _$SystemUiOverlayStyleState = AutoDisposeNotifier<SystemUiOverlayStyle>;
-String _$isSmartStoppedHash() => r'3f053dad10b19a0ee35a9bbbd5391395f0dcb5f7';
-
-/// Provider to track if VPN was stopped by Smart Auto Stop feature.
-/// This is used to show different notification content when smart-stopped.
-///
-/// Copied from [IsSmartStopped].
-@ProviderFor(IsSmartStopped)
-final isSmartStoppedProvider = NotifierProvider<IsSmartStopped, bool>.internal(
-  IsSmartStopped.new,
-  name: r'isSmartStoppedProvider',
+  DelayDataSource.new,
+  name: r'delayDataSourceProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
       ? null
-      : _$isSmartStoppedHash,
+      : _$delayDataSourceHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
-typedef _$IsSmartStopped = Notifier<bool>;
+typedef _$DelayDataSource = AutoDisposeNotifier<DelayMap>;
+String _$proxiesQueryHash() => r'5d34d3a000b1500a0a90c0053329bdaca9e76f60';
+
+/// See also [ProxiesQuery].
+@ProviderFor(ProxiesQuery)
+final proxiesQueryProvider =
+    AutoDisposeNotifierProvider<ProxiesQuery, String>.internal(
+  ProxiesQuery.new,
+  name: r'proxiesQueryProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$proxiesQueryHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$ProxiesQuery = AutoDisposeNotifier<String>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

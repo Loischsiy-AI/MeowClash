@@ -1,46 +1,50 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' show Pointer;
+import 'dart:io' show Platform;
 
 import 'package:animations/animations.dart';
 import 'package:dio/dio.dart';
 import 'package:dynamic_color/dynamic_color.dart';
-import 'package:meow_clash/clash/clash.dart';
-import 'package:meow_clash/common/theme.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/l10n/l10n.dart';
-import 'package:meow_clash/plugins/app.dart';
-import 'package:meow_clash/plugins/service.dart';
-import 'package:meow_clash/providers/state.dart' as providers_state;
-
-import 'package:meow_clash/widgets/dialog.dart';
+import 'package:flclashx/clash/clash.dart';
+import 'package:flclashx/common/theme.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/l10n/l10n.dart';
+import 'package:flclashx/plugins/service.dart';
+import 'package:flclashx/widgets/dialog.dart';
+import 'package:flclashx/widgets/scaffold.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart' as flutter_riverpod;
+import 'package:flutter_js/flutter_js.dart';
 import 'package:material_color_utilities/palettes/core_palette.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:synchronized/synchronized.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'common/common.dart';
 import 'controller.dart';
+import 'core_version.dart';
 import 'models/models.dart';
-import 'services/config_merge_service.dart';
-import 'services/config_priority_service.dart';
 
 typedef UpdateTasks = List<FutureOr Function()>;
 
 class GlobalState {
+
+  factory GlobalState() {
+    _instance ??= GlobalState._internal();
+    return _instance!;
+  }
+
+  GlobalState._internal();
   static GlobalState? _instance;
-  Map<CacheTag, FixedMap<String, double>> computeHeightMapCache = {};
+  Map<CacheTag, double> cacheScrollPosition = {};
+  Map<CacheTag, FixedMap<String, double>> cacheHeightMap = {};
   bool isService = false;
-  bool isExiting = false;
   Timer? timer;
   Timer? groupsUpdateTimer;
-  Config config = Config(themeProps: defaultThemeProps);
+  late Config config;
   late AppState appState;
   bool isPre = true;
   String? coreSHA256;
+  String? coreVersion;
   late PackageInfo packageInfo;
   Function? updateCurrentDelayDebounce;
   late Measure measure;
@@ -49,19 +53,24 @@ class GlobalState {
   CorePalette? corePalette;
   DateTime? startTime;
   UpdateTasks tasks = [];
+  // Effective external-controller endpoint after merging subscription value
+  // over UI defaults. Empty string means disabled. Subscription value wins if
+  // present, otherwise falls back to the UI toggle default.
+  final effectiveExternalController = ValueNotifier<String>("");
+  // Effective values for fields that follow the overrideNetworkSettings gate
+  // but don't round-trip through patchClashConfigProvider. UI reads these when
+  // override is OFF so it shows what's actually applied (profile or fallback).
+  final effectiveTcpConcurrent = ValueNotifier<bool>(false);
+  final effectiveUnifiedDelay = ValueNotifier<bool>(false);
+  final effectiveLogLevel = ValueNotifier<String>("info");
+  final effectiveKeepAliveInterval = ValueNotifier<int>(30);
+  // Custom per-group descriptions parsed from the profile YAML
+  // (proxy-groups[*].description). Shown as the subtitle of a nested group
+  // card instead of its type (Fallback/URLTest/Selector).
+  final groupDescriptions = ValueNotifier<Map<String, String>>({});
   final navigatorKey = GlobalKey<NavigatorState>();
-  final backgroundMode = ValueNotifier<bool>(false);
-  final animationEnabled = ValueNotifier<bool>(true);
   AppController? _appController;
-  bool? _isAndroidTV;
-  int _taskLoopToken = 0;
-  bool _isExecutingTasks = false;
-  bool _needsTaskRestart = false;
-  Timer? _backgroundCleanupTimer;
-  final Lock _scriptEvaluateLock = Lock();
-
-  SetupParams? _lastSuccessfulSetupParams;
-
+  GlobalKey<CommonScaffoldState> homeScaffoldKey = GlobalKey();
   bool isInit = false;
 
   bool get isStart => startTime != null && startTime!.isBeforeNow;
@@ -73,267 +82,86 @@ class GlobalState {
     isInit = true;
   }
 
-  GlobalState._internal();
-
-  factory GlobalState() {
-    _instance ??= GlobalState._internal();
-    return _instance!;
-  }
-
   Future<void> initApp(int version) async {
-    debugPrint('=== initApp: start ===');
-    isExiting = false;
-    coreSHA256 = const String.fromEnvironment('CORE_SHA256');
-    isPre = const String.fromEnvironment('APP_ENV') != 'stable';
-    try {
-      packageInfo = await PackageInfo.fromPlatform().timeout(const Duration(seconds: 2));
-    } catch (_) {}
-    _initDynamicColor();
-    try {
-      await init().timeout(const Duration(seconds: 5));
-    } catch (_) {}
-    debugPrint('=== initApp done ===');
+    coreSHA256 = const String.fromEnvironment("CORE_SHA256");
+    final coreVersionEnv = const String.fromEnvironment("CORE_VERSION");
+    coreVersion =
+        coreVersionEnv.isEmpty ? kCoreVersionFromSource : coreVersionEnv;
+    isPre = const String.fromEnvironment("APP_ENV") != 'stable';
+    appState = AppState(
+      version: version,
+      viewSize: Size.zero,
+      requests: FixedList(maxLength),
+      logs: FixedList(maxLength),
+      traffics: FixedList(30),
+      totalTraffic: Traffic(),
+    );
+    await _initDynamicColor();
+    await init();
   }
 
   Future<void> _initDynamicColor() async {
-    // Non-blocking - run in background
-    unawaited(Future(() async {
-      try {
-        corePalette = await DynamicColorPlugin.getCorePalette().timeout(const Duration(seconds: 1));
-      } catch (_) {}
-      try {
-        accentColor = await DynamicColorPlugin.getAccentColor().timeout(const Duration(seconds: 1)) ?? const Color(defaultPrimaryColor);
-      } catch (_) {
-        accentColor = const Color(defaultPrimaryColor);
-      }
-    }));
+    try {
+      corePalette = await DynamicColorPlugin.getCorePalette();
+      accentColor = await DynamicColorPlugin.getAccentColor() ??
+          const Color(defaultPrimaryColor);
+    } catch (_) {}
   }
 
   Future<void> init() async {
-    debugPrint('=== GlobalState.init: start ===');
-    try {
-      config = await preferences.getConfig().timeout(const Duration(seconds: 2)) ?? Config(themeProps: defaultThemeProps);
-    } catch (_) {}
-    debugPrint('=== GlobalState.init: config done ===');
+    packageInfo = await PackageInfo.fromPlatform();
+    config = await preferences.getConfig() ??
+        const Config(
+          themeProps: defaultThemeProps,
+        );
     await globalState.migrateOldData(config);
-    debugPrint('=== GlobalState.init: migrate done ===');
-    final locale =
-        utils.getLocaleForString(config.appSetting.locale) ??
-        utils.getSystemLocale();
-    debugPrint('=== GlobalState.init: loading locale=$locale ===');
-    await AppLocalizations.load(locale);
-    debugPrint('=== GlobalState.init: locale loaded ===');
-    if (system.isAndroid) {
-      try {
-        _isAndroidTV = await app.isAndroidTV().timeout(const Duration(seconds: 1));
-      } catch (_) {
-        _isAndroidTV = false;
-      }
-      debugPrint('=== GlobalState.init: isAndroidTV=$_isAndroidTV ===');
-    }
-    debugPrint('=== GlobalState.init: done ===');
+    await AppLocalizations.load(
+      utils.getLocaleForString(config.appSetting.locale) ??
+          WidgetsBinding.instance.platformDispatcher.locale,
+    );
   }
-
-  bool get isAndroidTV => _isAndroidTV ?? false;
 
   String get ua => config.patchClashConfig.globalUa ?? packageInfo.ua;
 
   Future<void> startUpdateTasks([UpdateTasks? tasks]) async {
+    if (timer != null && timer!.isActive == true) return;
     if (tasks != null) {
       this.tasks = tasks;
     }
-    final token = ++_taskLoopToken;
-    timer?.cancel();
-    timer = null;
-    if (_isExecutingTasks) {
-      _needsTaskRestart = true;
-      return;
-    }
-    await _runUpdateLoop(token);
-  }
-
-  Future<void> _runUpdateLoop(int token) async {
-    if (token != _taskLoopToken) return;
-    _isExecutingTasks = true;
-    try {
-      await executorUpdateTask();
-    } finally {
-      _isExecutingTasks = false;
-    }
-    if (_needsTaskRestart) {
-      _needsTaskRestart = false;
-      await _runUpdateLoop(_taskLoopToken);
-      return;
-    }
-    if (token != _taskLoopToken) return;
-    timer = Timer(const Duration(seconds: 1), () {
-      unawaited(_runUpdateLoop(token));
+    await executorUpdateTask();
+    timer = Timer(const Duration(seconds: 1), () async {
+      startUpdateTasks();
     });
   }
 
   Future<void> executorUpdateTask() async {
     for (final task in tasks) {
-      try {
-        await task();
-      } catch (e) {
-        commonPrint.log('Background task failed: $e');
-      }
+      await task();
     }
     timer = null;
   }
 
   void stopUpdateTasks() {
-    _taskLoopToken++;
-    _needsTaskRestart = false;
+    if (timer == null || timer?.isActive == false) return;
     timer?.cancel();
     timer = null;
   }
 
-  Future<void> handleBackground() async {
-    if (system.isDesktop) {
-      final isMinimized = await window?.isMinimized ?? false;
-      final isVisible = await window?.isVisible ?? true;
-      if (!isMinimized && isVisible) {
-        return;
-      }
-      animationEnabled.value = false;
-      if (!backgroundMode.value) {
-        backgroundMode.value = true;
-        _scheduleBackgroundCleanup();
-      }
-      render?.pause();
-      stopUpdateTasks();
-      dashboardRefreshManager.stop();
-      return;
-    }
-    if (!backgroundMode.value) {
-      backgroundMode.value = true;
-      _scheduleBackgroundCleanup();
-    }
-    render?.pause();
-    stopUpdateTasks();
-    dashboardRefreshManager.stop();
-  }
-
-  void handleForeground() {
-    if (system.isDesktop) {
-      animationEnabled.value = true;
-    }
-    if (!backgroundMode.value) {
-      return;
-    }
-    backgroundMode.value = false;
-    _backgroundCleanupTimer?.cancel();
-    _backgroundCleanupTimer = null;
-    _syncVpnState();
-  }
-
-  Future<void> _syncVpnState() async {
-    if (!system.isAndroid) return;
-    try {
-      final actuallyRunning = await service?.getStatus() ?? false;
-      final flutterState = appState.runTime != null;
-
-      if (actuallyRunning && !flutterState) {
-        await updateStartTime();
-        if (startTime != null) {
-          appState = appState.copyWith(runTime: 0);
-          await startUpdateTasks([appController.updateTraffic]);
-        }
-      } else if (!actuallyRunning && flutterState) {
-        appState = appState.copyWith(runTime: null);
-        startTime = null;
-      }
-    } catch (e) {
-      commonPrint.log('Sync VPN state error: $e');
-    }
-  }
-
-  Future<void> resumeForegroundUpdates() async {
-    dashboardRefreshManager.start();
-    if (!isStart) {
-      return;
-    }
-    await appController.updateRunTime();
-    await appController.updateTraffic();
-    await startUpdateTasks([appController.updateTraffic]);
-  }
-
-  void _scheduleBackgroundCleanup() {
-    _backgroundCleanupTimer?.cancel();
-    _backgroundCleanupTimer = Timer(const Duration(minutes: 3), () {
-      _backgroundCleanupTimer = null;
-      if (!backgroundMode.value) {
-        return;
-      }
-      cleanupBackgroundResources();
-    });
-  }
-
-  void cleanupBackgroundResources() async {
-    final imageCache = PaintingBinding.instance.imageCache;
-    imageCache.clearLiveImages();
-    await Future.delayed(const Duration(milliseconds: 500));
-    WidgetsBinding.instance.handleMemoryPressure();
-    await Future.delayed(const Duration(milliseconds: 500));
-    await clashCore.requestGc();
-  }
-
   Future<void> handleStart([UpdateTasks? tasks]) async {
     startTime ??= DateTime.now();
-    if (system.isAndroid && isService) {
-      await clashLibHandler?.startListener();
-    } else {
-      await clashCore.startListener();
-    }
+    await clashCore.startListener();
     await service?.startVpn();
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-    await prefs?.setBool('is_vpn_running', true);
-    if (system.isDesktop) {
-      final tunEnabled = config.patchClashConfig.tun.enable;
-      await prefs?.setBool('is_tun_running', tunEnabled);
-    }
-    if (system.isAndroid) {
-      final conflictFreeQuickResponse =
-          config.vpnProps.quickResponse && !config.vpnProps.smartAutoStop;
-      await service?.setQuickResponse(conflictFreeQuickResponse);
-    }
-    await startUpdateTasks(tasks);
+    startUpdateTasks(tasks);
   }
 
   Future updateStartTime() async {
     startTime = await clashLib?.getRunTime();
   }
 
-  void updateWakelockState(bool enabled) {
-    if (_appController != null) {
-      final container = _appController!.context;
-      if (container.mounted) {
-        final providerContainer = flutter_riverpod.ProviderScope.containerOf(
-          container,
-          listen: false,
-        );
-        providerContainer
-                .read(providers_state.wakelockStateProvider.notifier)
-                .state =
-            enabled;
-      }
-    }
-  }
-
   Future handleStop() async {
     startTime = null;
-    if (system.isAndroid && isService) {
-      await clashLibHandler?.stopListener();
-    } else {
-      await clashCore.stopListener();
-    }
+    await clashCore.stopListener();
     await service?.stopVpn();
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-    await prefs?.setBool('is_vpn_running', false);
-    if (system.isDesktop) {
-      await prefs?.setBool('is_tun_running', false);
-    }
     stopUpdateTasks();
   }
 
@@ -342,11 +170,9 @@ class GlobalState {
     required InlineSpan message,
     String? confirmText,
     bool cancelable = true,
-  }) async {
-    return await showCommonDialog<bool>(
+  }) async => showCommonDialog<bool>(
       child: Builder(
-        builder: (context) {
-          return CommonDialog(
+        builder: (context) => CommonDialog(
             title: title ?? appLocalizations.tip,
             actions: [
               if (cancelable)
@@ -361,7 +187,7 @@ class GlobalState {
                   Navigator.of(context).pop(true);
                 },
                 child: Text(confirmText ?? appLocalizations.confirm),
-              ),
+              )
             ],
             child: Container(
               width: 300,
@@ -372,78 +198,101 @@ class GlobalState {
                     style: Theme.of(context).textTheme.labelLarge,
                     children: [message],
                   ),
-                  style: const TextStyle(overflow: TextOverflow.visible),
+                  style: const TextStyle(
+                    overflow: TextOverflow.visible,
+                  ),
                 ),
               ),
             ),
-          );
-        },
+          ),
       ),
     );
-  }
+
+  // Future<Map<String, dynamic>> getProfileMap(String id) async {
+  //   final profilePath = await appPath.getProfilePath(id);
+  //   final res = await Isolate.run<Result<dynamic>>(() async {
+  //     try {
+  //       final file = File(profilePath);
+  //       if (!await file.exists()) {
+  //         return Result.error("");
+  //       }
+  //       final value = await file.readAsString();
+  //       return Result.success(utils.convertYamlNode(loadYaml(value)));
+  //     } catch (e) {
+  //       return Result.error(e.toString());
+  //     }
+  //   });
+  //   if (res.isSuccess) {
+  //     return res.data as Map<String, dynamic>;
+  //   } else {
+  //     throw res.message;
+  //   }
+  // }
 
   Future<T?> showCommonDialog<T>({
     required Widget child,
     bool dismissible = true,
-  }) async {
-    final context = navigatorKey.currentState!.context;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return await showModal<T>(
-      context: context,
+  }) async => showModal<T>(
+      context: navigatorKey.currentState!.context,
       configuration: FadeScaleTransitionConfiguration(
-        barrierColor: isDark
-            ? const Color(0xCC000000)
-            : const Color(0x99000000),
+        barrierColor: Colors.black38,
         barrierDismissible: dismissible,
       ),
       builder: (_) => child,
+      filter: commonFilter,
     );
-  }
 
-  void showNotifier(
-    String text, {
-    VoidCallback? onAction,
-    String? actionLabel,
-    bool showCountdown = false,
-  }) {
-    if (text.isEmpty) return;
-    navigatorKey.currentContext?.showNotifier(
-      text,
-      onAction: onAction,
-      actionLabel: actionLabel,
-      showCountdown: showCountdown,
-    );
-  }
-
-  Future<void> openUrl(String url, {bool needConfirm = false}) async {
-    if (needConfirm) {
-      final res = await showMessage(
-        message: TextSpan(text: url),
-        title: appLocalizations.externalLink,
-        confirmText: appLocalizations.go,
-      );
-      if (res != true) {
-        return;
+  Future<T?> safeRun<T>(
+    FutureOr<T> Function() futureFunction, {
+    String? title,
+    bool silence = true,
+  }) async {
+    try {
+      final res = await futureFunction();
+      return res;
+    } catch (e) {
+      commonPrint.log("$e");
+      if (silence) {
+        showNotifier(e.toString());
+      } else {
+        showMessage(
+          title: title ?? appLocalizations.tip,
+          message: TextSpan(
+            text: e.toString(),
+          ),
+        );
       }
+      return null;
     }
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  void showNotifier(String text) {
+    if (text.isEmpty) {
+      return;
+    }
+    navigatorKey.currentContext?.showNotifier(text);
+  }
+
+  Future<void> openUrl(String url) async {
+    final res = await showMessage(
+      message: TextSpan(text: url),
+      title: appLocalizations.externalLink,
+      confirmText: appLocalizations.go,
+    );
+    if (res != true) {
+      return;
+    }
+    launchUrl(Uri.parse(url));
   }
 
   Future<void> migrateOldData(Config config) async {
     final clashConfig = await preferences.getClashConfig();
     if (clashConfig != null) {
-      config = config.copyWith(patchClashConfig: clashConfig);
+      config = config.copyWith(
+        patchClashConfig: clashConfig,
+      );
       preferences.clearClashConfig();
       preferences.saveConfig(config);
-    }
-
-    if (config.appSetting.locale == null) {
-      final systemLocale = utils.getSystemLocale();
-      config = config.copyWith(
-        appSetting: config.appSetting.copyWith(locale: systemLocale.toString()),
-      );
-      preferences.saveConfig(config);
-      this.config = config;
     }
   }
 
@@ -451,33 +300,70 @@ class GlobalState {
     final currentProfile = config.currentProfile;
     return CoreState(
       vpnProps: config.vpnProps,
-      onlyStatisticsProxy: config.appSetting.onlyStatisticsProxy,
-      currentProfileName: currentProfile?.label ?? currentProfile?.id ?? '',
+      onlyStatisticsProxy: false,
+      currentProfileName: currentProfile?.label ?? currentProfile?.id ?? "",
       bypassDomain: config.networkProps.bypassDomain,
     );
   }
 
-  Future<SetupParams> getSetupParams({required ClashConfig pathConfig}) async {
-    final clashConfig = await patchRawConfig(patchConfig: pathConfig);
+  Future<SetupParams> getSetupParams({
+    required ClashConfig pathConfig,
+  }) async {
+    final clashConfig = await patchRawConfig(
+      patchConfig: pathConfig,
+    );
     final params = SetupParams(
       config: clashConfig,
       selectedMap: config.currentProfile?.selectedMap ?? {},
       testUrl: config.appSetting.testUrl,
-      overrideTestUrl: config.overrideTestUrl,
     );
     return params;
   }
 
-  void backupSuccessfulConfig(SetupParams params) {
-    if (_lastSuccessfulSetupParams == params) {
-      return;
+  Future<ClashConfig> syncNetworkSettingsFromProvider(ClashConfig patchConfig) async {
+    if (config.appSetting.overrideNetworkSettings) {
+      return patchConfig; // User wants to override, keep current settings
     }
-    _lastSuccessfulSetupParams = params;
-    commonPrint.log('Current config protected');
-  }
 
-  SetupParams? getLastSuccessfulConfig() {
-    return _lastSuccessfulSetupParams;
+    final profile = config.currentProfile;
+    if (profile == null) {
+      return patchConfig;
+    }
+
+    try {
+      final profileId = profile.id;
+      final configMap = await getProfileConfig(profileId);
+      final rawConfig = await handleEvaluate(configMap);
+
+      final providerIpv6 = rawConfig['ipv6'] as bool? ?? patchConfig.ipv6;
+      final providerAllowLan = rawConfig['allow-lan'] as bool? ?? patchConfig.allowLan;
+      final providerMixedPort = rawConfig['mixed-port'] as int? ?? patchConfig.mixedPort;
+      final providerFindProcessModeStr = rawConfig['find-process-mode'] as String?;
+      final providerFindProcessMode = providerFindProcessModeStr != null 
+          ? FindProcessMode.values.firstWhere(
+              (e) => e.name.toLowerCase() == providerFindProcessModeStr.toLowerCase(),
+              orElse: () => patchConfig.findProcessMode,
+            )
+          : patchConfig.findProcessMode;
+      
+      final providerTunStackStr = rawConfig['tun']?['stack'] as String?;
+      final providerTunStack = providerTunStackStr != null
+          ? TunStack.values.firstWhere(
+              (e) => e.name.toLowerCase() == providerTunStackStr.toLowerCase(),
+              orElse: () => patchConfig.tun.stack,
+            )
+          : patchConfig.tun.stack;
+
+      return patchConfig.copyWith(
+        ipv6: providerIpv6,
+        allowLan: providerAllowLan,
+        mixedPort: providerMixedPort,
+        findProcessMode: providerFindProcessMode,
+      ).copyWith.tun(stack: providerTunStack);
+    } catch (e) {
+      commonPrint.log("Error syncing network settings from provider: $e");
+      return patchConfig;
+    }
   }
 
   Future<Map<String, dynamic>> patchRawConfig({
@@ -490,279 +376,237 @@ class GlobalState {
     final profileId = profile.id;
     final configMap = await getProfileConfig(profileId);
     final rawConfig = await handleEvaluate(configMap);
-    final originalProxyGroups = rawConfig['proxy-groups'];
-
-    final externalPriority = await configPriorityService.getOverrideLocalSettings();
-    final mergeService = ConfigMergeService(externalPriority: externalPriority);
-
+    
     final realPatchConfig = patchConfig.copyWith(
-      tun: patchConfig.tun.getRealTun(
-        config.networkProps.bypassPrivateRoute,
-        fakeIpRange: patchConfig.dns.fakeIpRange,
-        fakeIpRangeV6: patchConfig.dns.fakeIpRangeV6,
-      ),
+      tun: patchConfig.tun.getRealTun(config.networkProps.routeMode),
     );
-    rawConfig['external-controller'] = realPatchConfig.externalController.value;
-    if (realPatchConfig.externalController == ExternalControllerStatus.open) {
-      final secret = realPatchConfig.secret;
-      if (secret != null && secret.isNotEmpty) {
-        rawConfig['secret'] = secret;
-      }
-    }
-    rawConfig['external-ui'] = await appPath.uiPath;
-    rawConfig['interface-name'] = '';
-    mergeService.apply(rawConfig, 'tcp-concurrent', realPatchConfig.tcpConcurrent);
-    mergeService.apply(rawConfig, 'unified-delay', realPatchConfig.unifiedDelay);
-    mergeService.apply(rawConfig, 'ipv6', realPatchConfig.ipv6);
-    mergeService.apply(rawConfig, 'log-level', realPatchConfig.logLevel.name);
-    rawConfig['port'] = 0;
-    rawConfig['socks-port'] = 0;
-    mergeService.apply(rawConfig, 'keep-alive-interval', realPatchConfig.keepAliveInterval);
-    mergeService.apply(rawConfig, 'mixed-port', realPatchConfig.mixedPort);
-    mergeService.apply(rawConfig, 'port', realPatchConfig.port);
-    mergeService.apply(rawConfig, 'socks-port', realPatchConfig.socksPort);
-    mergeService.apply(rawConfig, 'redir-port', realPatchConfig.redirPort);
-    mergeService.apply(rawConfig, 'tproxy-port', realPatchConfig.tproxyPort);
-    mergeService.apply(rawConfig, 'find-process-mode', realPatchConfig.findProcessMode.name);
-    mergeService.apply(rawConfig, 'allow-lan', realPatchConfig.allowLan);
-    mergeService.apply(rawConfig, 'mode', realPatchConfig.mode.name);
-    if (rawConfig['tun'] == null) {
-      rawConfig['tun'] = {};
-    }
-    final tunMap = rawConfig['tun'] as Map<String, dynamic>;
-    mergeService.apply(tunMap, 'enable', realPatchConfig.tun.enable);
-    mergeService.apply(tunMap, 'device', realPatchConfig.tun.device);
-    mergeService.apply(tunMap, 'dns-hijack', realPatchConfig.tun.dnsHijack);
-    mergeService.apply(tunMap, 'stack', realPatchConfig.tun.stack.name);
-    mergeService.apply(tunMap, 'route-address', realPatchConfig.tun.routeAddress);
-    mergeService.apply(tunMap, 'route-exclude-address', realPatchConfig.tun.routeExcludeAddress);
-    tunMap['auto-route'] = true;
-    tunMap['auto-detect-interface'] = true;
-    mergeService.apply(tunMap, 'strict-route', realPatchConfig.tun.strictRoute);
-    mergeService.apply(tunMap, 'endpoint-independent-nat',
-        realPatchConfig.tun.endpointIndependentNat);
-    mergeService.apply(tunMap, 'disable-icmp-forwarding',
-        realPatchConfig.tun.disableIcmpForwarding);
-    mergeService.apply(tunMap, 'mtu', realPatchConfig.tun.mtu);
-    mergeService.apply(rawConfig, 'geodata-loader', realPatchConfig.geodataLoader.name);
-    mergeService.apply(rawConfig, 'geodata-mode', false);
-    if (rawConfig['sniffer']?['sniff'] != null) {
-      for (final value in (rawConfig['sniffer']?['sniff'] as Map).values) {
-        if (value['ports'] != null && value['ports'] is List) {
-          value['ports'] =
-              value['ports']?.map((item) => item.toString()).toList() ?? [];
+    // Custom "description" field on proxy-groups — extracted here because
+    // mihomo's /proxies API doesn't forward arbitrary YAML keys.
+    final parsedGroupDescriptions = <String, String>{};
+    final rawGroups = rawConfig["proxy-groups"];
+    if (rawGroups is List) {
+      for (final g in rawGroups) {
+        if (g is! Map) continue;
+        final name = g["name"];
+        if (name is! String) continue;
+        final desc = g["description"];
+        if (desc is String && desc.trim().isNotEmpty) {
+          parsedGroupDescriptions[name] = desc.trim();
         }
       }
     }
-    if (rawConfig['profile'] == null) {
-      rawConfig['profile'] = {};
+    groupDescriptions.value = parsedGroupDescriptions;
+    // external-controller: profile value always wins when present. The UI
+    // toggle only acts as a fallback because the enum hardcodes 127.0.0.1:9090
+    // and would otherwise silently override a subscription-provided endpoint
+    // (e.g. :9091). The overrideNetworkSettings gate is intentionally ignored
+    // here — users who set external-controller in their profile mean it.
+    final providerExternalController =
+        (rawConfig["external-controller"] as String?)?.trim() ?? "";
+    final effectiveExternalControllerValue = providerExternalController.isNotEmpty
+        ? providerExternalController
+        : realPatchConfig.externalController.value;
+    rawConfig["external-controller"] = effectiveExternalControllerValue;
+    effectiveExternalController.value = effectiveExternalControllerValue;
+    if (rawConfig["external-ui"] == null || rawConfig["external-ui"] == "") {
+      rawConfig["external-ui"] = "";
     }
-    if (rawConfig['proxy-providers'] != null) {
-      final proxyProviders = rawConfig['proxy-providers'] as Map;
+    rawConfig["interface-name"] = "";
+    if (rawConfig["external-ui-url"] == null || rawConfig["external-ui-url"] == "") {
+      rawConfig["external-ui-url"] = "";
+    }
+    // These follow the same overrideNetworkSettings gate as other fields:
+    //   override ON  → UI value wins (always written)
+    //   override OFF → profile value wins, UI is fallback only if missing
+    // Effective values are exposed so the UI reflects what's actually applied
+    // when override is OFF (otherwise widgets would still show stored UI prefs).
+    final profileTcpConcurrent = rawConfig["tcp-concurrent"] as bool?;
+    final profileUnifiedDelay = rawConfig["unified-delay"] as bool?;
+    final profileLogLevel = rawConfig["log-level"] as String?;
+    final profileKeepAlive = (rawConfig["keep-alive-interval"] as num?)?.toInt();
+    final isOverride = config.appSetting.overrideNetworkSettings;
+    final effTcpConcurrent = isOverride
+        ? realPatchConfig.tcpConcurrent
+        : (profileTcpConcurrent ?? realPatchConfig.tcpConcurrent);
+    final effUnifiedDelay = isOverride
+        ? realPatchConfig.unifiedDelay
+        : (profileUnifiedDelay ?? realPatchConfig.unifiedDelay);
+    final effLogLevel = isOverride
+        ? realPatchConfig.logLevel.name
+        : (profileLogLevel ?? realPatchConfig.logLevel.name);
+    final effKeepAlive = isOverride
+        ? realPatchConfig.keepAliveInterval
+        : (profileKeepAlive ?? realPatchConfig.keepAliveInterval);
+    rawConfig["tcp-concurrent"] = effTcpConcurrent;
+    rawConfig["unified-delay"] = effUnifiedDelay;
+    rawConfig["log-level"] = effLogLevel;
+    rawConfig["keep-alive-interval"] = effKeepAlive;
+    effectiveTcpConcurrent.value = effTcpConcurrent;
+    effectiveUnifiedDelay.value = effUnifiedDelay;
+    effectiveLogLevel.value = effLogLevel;
+    effectiveKeepAliveInterval.value = effKeepAlive;
+    rawConfig["port"] = 0;
+    rawConfig["socks-port"] = 0;
+    rawConfig["port"] = realPatchConfig.port;
+    rawConfig["socks-port"] = realPatchConfig.socksPort;
+    rawConfig["redir-port"] = realPatchConfig.redirPort;
+    rawConfig["tproxy-port"] = realPatchConfig.tproxyPort;
+    rawConfig["mode"] = realPatchConfig.mode.name;
+    
+    // Set network settings: use patchConfig if overriding, otherwise keep provider values
+    if (config.appSetting.overrideNetworkSettings) {
+      // User wants to override - use values from UI (always write)
+      rawConfig["find-process-mode"] = realPatchConfig.findProcessMode.name;
+      rawConfig["allow-lan"] = realPatchConfig.allowLan;
+      rawConfig["ipv6"] = realPatchConfig.ipv6;
+      rawConfig["mixed-port"] = realPatchConfig.mixedPort;
+    } else {
+      // Use provider values - only set if not already in rawConfig, use patchConfig values (which are synced from provider)
+      if (rawConfig["find-process-mode"] == null) {
+        rawConfig["find-process-mode"] = realPatchConfig.findProcessMode.name;
+      }
+      if (rawConfig["allow-lan"] == null) {
+        rawConfig["allow-lan"] = realPatchConfig.allowLan;
+      }
+      if (rawConfig["ipv6"] == null) {
+        rawConfig["ipv6"] = realPatchConfig.ipv6;
+      }
+      if (rawConfig["mixed-port"] == null) {
+        rawConfig["mixed-port"] = realPatchConfig.mixedPort;
+      }
+    }
+
+    // flclashx-androidsecure header: when set to "true" on Android, force
+    // mixed-port = 0 so the HTTP/SOCKS inbound is disabled and traffic can
+    // only leave through the VpnService/TUN. Applied as a final override
+    // regardless of overrideNetworkSettings or UI-configured port, because
+    // the header expresses an explicit policy from the subscription provider
+    // that should not be overridable from the app side. No-op on other
+    // platforms — desktop TUN gating is handled separately.
+    if (Platform.isAndroid) {
+      final secureHeader =
+          profile.providerHeaders['flclashx-androidsecure']?.trim().toLowerCase();
+      if (secureHeader == 'true') {
+        rawConfig["mixed-port"] = 0;
+      }
+    }
+    
+    if (rawConfig["tun"] == null) {
+      rawConfig["tun"] = {};
+    }
+    rawConfig["tun"]["enable"] = realPatchConfig.tun.enable;
+    rawConfig["tun"]["device"] = realPatchConfig.tun.device;
+    rawConfig["tun"]["dns-hijack"] = realPatchConfig.tun.dnsHijack;
+    
+    // Set TUN stack
+    if (config.appSetting.overrideNetworkSettings) {
+      // User wants to override - use value from UI (always write)
+      rawConfig["tun"]["stack"] = realPatchConfig.tun.stack.name;
+    } else {
+      // Use provider value - only set if not already in rawConfig, use patchConfig value (which is synced from provider)
+      final currentStack = rawConfig["tun"]["stack"];
+      if (currentStack == null) {
+        rawConfig["tun"]["stack"] = realPatchConfig.tun.stack.name;
+      }
+    }
+    
+    rawConfig["tun"]["route-address"] = realPatchConfig.tun.routeAddress;
+    rawConfig["tun"]["auto-route"] = realPatchConfig.tun.autoRoute;
+    rawConfig["geodata-loader"] = realPatchConfig.geodataLoader.name;
+    if (rawConfig["sniffer"]?["sniff"] != null) {
+      for (final value in (rawConfig["sniffer"]?["sniff"] as Map).values) {
+        if (value["ports"] != null && value["ports"] is List) {
+          value["ports"] =
+              value["ports"]?.map((item) => item.toString()).toList() ?? [];
+        }
+      }
+    }
+    if (rawConfig["profile"] == null) {
+      rawConfig["profile"] = {};
+    }
+    if (rawConfig["proxy-providers"] != null) {
+      final proxyProviders = rawConfig["proxy-providers"] as Map;
       for (final key in proxyProviders.keys) {
         final proxyProvider = proxyProviders[key];
-        if (proxyProvider['type'] != 'http') {
+        if (proxyProvider["type"] != "http") {
           continue;
         }
-        if (proxyProvider['url'] != null) {
-          proxyProvider['path'] = await appPath.getProvidersFilePath(
+        if (proxyProvider["url"] != null) {
+          proxyProvider["path"] = await appPath.getProvidersFilePath(
             profile.id,
-            'proxies',
-            proxyProvider['url'],
+            "proxies",
+            proxyProvider["url"],
           );
         }
       }
     }
 
-    if (rawConfig['rule-providers'] != null) {
-      final ruleProviders = rawConfig['rule-providers'] as Map;
+    if (rawConfig["rule-providers"] != null) {
+      final ruleProviders = rawConfig["rule-providers"] as Map;
       for (final key in ruleProviders.keys) {
         final ruleProvider = ruleProviders[key];
-        if (ruleProvider['type'] != 'http') {
+        if (ruleProvider["type"] != "http") {
           continue;
         }
-        if (ruleProvider['url'] != null) {
-          ruleProvider['path'] = await appPath.getProvidersFilePath(
+        if (ruleProvider["url"] != null) {
+          ruleProvider["path"] = await appPath.getProvidersFilePath(
             profile.id,
-            'rules',
-            ruleProvider['url'],
+            "rules",
+            ruleProvider["url"],
           );
         }
       }
     }
 
-    rawConfig['profile']['store-selected'] = true;
-    mergeService.apply(rawConfig, 'geox-url', realPatchConfig.geoXUrl.toJson());
-    mergeService.apply(rawConfig, 'global-ua', realPatchConfig.globalUa);
-    if (rawConfig['hosts'] == null) {
-      rawConfig['hosts'] = <String, dynamic>{};
+    rawConfig["profile"]["store-selected"] = false;
+    
+    final mergedGeoXUrl = <String, dynamic>{};
+    final patchGeoX = realPatchConfig.geoXUrl.toJson();
+    final profileGeoX = rawConfig["geox-url"];
+    
+    mergedGeoXUrl['geoip'] = patchGeoX['geoip'];
+    mergedGeoXUrl['mmdb'] = patchGeoX['mmdb'];
+    mergedGeoXUrl['asn'] = patchGeoX['asn'];
+    mergedGeoXUrl['geosite'] = patchGeoX['geosite'];
+    
+    if (profileGeoX != null && profileGeoX is Map) {
+      if (profileGeoX['geoip'] != null) mergedGeoXUrl['geoip'] = profileGeoX['geoip'];
+      if (profileGeoX['mmdb'] != null) mergedGeoXUrl['mmdb'] = profileGeoX['mmdb'];
+      if (profileGeoX['asn'] != null) mergedGeoXUrl['asn'] = profileGeoX['asn'];
+      if (profileGeoX['geosite'] != null) mergedGeoXUrl['geosite'] = profileGeoX['geosite'];
     }
-    final hostsMap = rawConfig['hosts'] as Map<String, dynamic>;
+    
+    rawConfig["geox-url"] = mergedGeoXUrl;
+    rawConfig["global-ua"] = realPatchConfig.globalUa;
+    if (rawConfig["hosts"] == null) {
+      rawConfig["hosts"] = {};
+    }
     for (final host in realPatchConfig.hosts.entries) {
-      mergeService.apply(hostsMap, host.key, host.value.splitByMultipleSeparators);
+      rawConfig["hosts"][host.key] = host.value.splitByMultipleSeparators;
     }
-
-    hostsMap['dns.msftncsi.com'] = [
-      '131.107.255.255',
-      'fd3e:4f5a:5b81::1',
-    ];
-
-    if (rawConfig['dns'] == null) {
-      rawConfig['dns'] = {};
+    if (rawConfig["dns"] == null) {
+      rawConfig["dns"] = {};
     }
-    final isEnableDns = rawConfig['dns']['enable'] == true;
+    final isEnableDns = rawConfig["dns"]["enable"] == true;
     final overrideDns = globalState.config.overrideDns;
-    if (!isEnableDns || (overrideDns && mergeService.shouldOverrideSection(rawConfig, 'dns'))) {
+    if (overrideDns || !isEnableDns) {
       final dns = switch (!isEnableDns) {
         true => realPatchConfig.dns.copyWith(
-          nameserver: [...realPatchConfig.dns.nameserver, 'system://'],
-        ),
+            nameserver: [...realPatchConfig.dns.nameserver, "system://"]),
         false => realPatchConfig.dns,
       };
-      rawConfig['dns'] = dns.toJson();
-      rawConfig['dns']['nameserver-policy'] = {};
+      rawConfig["dns"] = dns.toJson();
+      rawConfig["dns"]["nameserver-policy"] = {};
       for (final entry in dns.nameserverPolicy.entries) {
-        rawConfig['dns']['nameserver-policy'][entry.key] =
+        rawConfig["dns"]["nameserver-policy"][entry.key] =
             entry.value.splitByMultipleSeparators;
       }
     }
-
-    if (system.isAndroid && rawConfig['dns']['listen'] != null) {
-      final listen = rawConfig['dns']['listen'] as String;
-      if (listen.endsWith(':53')) {
-        rawConfig['dns']['listen'] = listen.replaceAll(':53', ':1053');
-      }
-    }
-
-    if (rawConfig['ntp'] == null) {
-      rawConfig['ntp'] = {};
-    }
-    final overrideNtp = globalState.config.overrideNtp;
-    if (overrideNtp && mergeService.shouldOverrideSection(rawConfig, 'ntp')) {
-      final ntp = realPatchConfig.ntp;
-      rawConfig['ntp'] = ntp.toJson();
-    }
-    if (rawConfig['sniffer'] == null) {
-      rawConfig['sniffer'] = {};
-    }
-    final overrideSniffer = globalState.config.overrideSniffer;
-    if (overrideSniffer && mergeService.shouldOverrideSection(rawConfig, 'sniffer')) {
-      final sniffer = realPatchConfig.sniffer;
-      rawConfig['sniffer'] = sniffer.toJson();
-    }
-    final guiTunnels = realPatchConfig.tunnels;
-    if (guiTunnels.isNotEmpty && mergeService.shouldOverrideSection(rawConfig, 'tunnels')) {
-      final existingTunnels = rawConfig['tunnels'] as List? ?? [];
-      final allTunnels = [
-        ...existingTunnels,
-        ...guiTunnels.map((t) => t.toClashJson()),
-      ];
-      rawConfig['tunnels'] = allTunnels;
-    }
-    if (rawConfig['experimental'] == null) {
-      rawConfig['experimental'] = {};
-    }
-    final overrideExperimental = globalState.config.overrideExperimental;
-    if (overrideExperimental && mergeService.shouldOverrideSection(rawConfig, 'experimental')) {
-      final experimental = realPatchConfig.experimental;
-      rawConfig['experimental'] = experimental.toJson();
-    }
-
-    final nodeExcludeFilter = globalState.config.nodeExcludeFilter;
-    final healthCheckTimeout = globalState.config.healthCheckTimeout;
-    if ((nodeExcludeFilter.isNotEmpty || healthCheckTimeout != 5000) &&
-        rawConfig['proxy-groups'] is List) {
-      RegExp? filterRegex;
-      if (nodeExcludeFilter.isNotEmpty) {
-        try {
-          filterRegex = RegExp(nodeExcludeFilter);
-        } catch (_) {}
-      }
-
-      final proxyGroups = rawConfig['proxy-groups'] as List;
-
-      final Set<String> protectedNames = {
-        'DIRECT',
-        'REJECT',
-        'REJECT-DROP',
-        'COMPATIBLE',
-        'PASS',
-      };
-      for (final g in proxyGroups) {
-        if (g is Map && g['name'] is String) {
-          protectedNames.add(g['name'] as String);
-        }
-      }
-
-      for (final group in proxyGroups) {
-        if (group is! Map) continue;
-
-        if (filterRegex != null && group['use'] != null) {
-          final existing = group['exclude-filter'];
-          if (existing is String && existing.isNotEmpty) {
-            group['exclude-filter'] = '$existing|$nodeExcludeFilter';
-          } else {
-            group['exclude-filter'] = nodeExcludeFilter;
-          }
-        }
-
-        if (filterRegex != null && group['proxies'] is List) {
-          final proxiesList = group['proxies'] as List;
-          final filtered = proxiesList.where((item) {
-            if (item is! String || protectedNames.contains(item)) return true;
-            return !filterRegex!.hasMatch(item);
-          }).toList();
-
-          if (filtered.isEmpty &&
-              (group['use'] == null ||
-                  (group['use'] is List && group['use'].isEmpty))) {
-            filtered.add('DIRECT');
-          }
-          group['proxies'] = filtered;
-        }
-
-        if (healthCheckTimeout != 5000) {
-          group['timeout'] ??= healthCheckTimeout;
-        }
-      }
-
-      if (filterRegex != null && rawConfig['proxy-providers'] is Map) {
-        final proxyProviders = rawConfig['proxy-providers'] as Map;
-        for (final provider in proxyProviders.values) {
-          if (provider is! Map) continue;
-          final existing = provider['exclude-filter'];
-          if (existing is String && existing.isNotEmpty) {
-            provider['exclude-filter'] = '$existing|$nodeExcludeFilter';
-          } else {
-            provider['exclude-filter'] = nodeExcludeFilter;
-          }
-        }
-      }
-    }
-
-    if (rawConfig['proxy-groups'] is List) {
-      final proxyGroups = rawConfig['proxy-groups'] as List;
-      for (final group in proxyGroups) {
-        if (group is! Map) continue;
-        final tolerance = group['tolerance'];
-        if (tolerance != null) {
-          if (tolerance is double) {
-            group['tolerance'] = tolerance.toInt();
-          } else if (tolerance is String) {
-            group['tolerance'] = int.tryParse(tolerance) ?? tolerance;
-          }
-        }
-      }
-    }
-
     var rules = [];
-    if (rawConfig['rules'] != null) {
-      rules = rawConfig['rules'];
-      rawConfig.remove('rules');
-    } else if (rawConfig['rule'] != null) {
-      rules = rawConfig['rule'];
-      rawConfig.remove('rule');
+    if (rawConfig["rules"] != null) {
+      rules = rawConfig["rules"];
     }
+    rawConfig.remove("rules");
 
     final overrideData = profile.overrideData;
     if (overrideData.enable && config.scriptProps.currentScript == null) {
@@ -772,27 +616,7 @@ class GlobalState {
         rules = [...overrideData.runningRule, ...rules];
       }
     }
-
-
-
-    if (config.vpnProps.fcmOptimization) {
-      final fcmRules = ['DOMAIN,mtalk.google.com,DIRECT'];
-      rules = [...fcmRules, ...rules];
-    }
-
-    if (config.vpnProps.disableQuic) {
-      final isRussian = config.appSetting.locale?.toLowerCase().startsWith('ru') ?? false;
-      final quicRules = config.vpnProps.excludeChina && !isRussian
-          ? ['AND,((NETWORK,UDP),(DST-PORT,443),(NOT,((OR,((GEOSITE,geolocation-cn),(GEOIP,CN,no-resolve)))))),REJECT']
-          : ['AND,((NETWORK,UDP),(DST-PORT,443)),REJECT'];
-      rules = [...quicRules, ...rules];
-    }
-
-    if (rawConfig['proxy-groups'] == null && originalProxyGroups != null) {
-      rawConfig['proxy-groups'] = originalProxyGroups;
-    }
-
-    rawConfig['rule'] = rules;
+    rawConfig["rule"] = rules;
     return rawConfig;
   }
 
@@ -801,285 +625,140 @@ class GlobalState {
       true => clashLibHandler!.getConfig(profileId),
       false => clashCore.getConfig(profileId),
     };
-    configMap['rules'] = configMap['rule'];
-    configMap.remove('rule');
+    configMap["rules"] = configMap["rule"];
+    configMap.remove("rule");
     return configMap;
   }
 
   Future<Map<String, dynamic>> handleEvaluate(
     Map<String, dynamic> config,
   ) async {
-    return _scriptEvaluateLock.synchronized(() async {
-      final currentScript = globalState.config.scriptProps.currentScript;
-      if (currentScript == null) return config;
-
-      config['proxy-providers'] ??= {};
-      final configJs = json.encode(config);
-      final scriptJs = json.encode(currentScript.content);
-
-      return JavaScriptRuntimeManager.execute((runtime) async {
-        final res = await runtime.evaluateAsync('''
-          (() => {
-            const __bettboxConfig = $configJs;
-            const __bettboxScript = $scriptJs;
-            const __bettboxMain = new Function(
-              __bettboxScript + '\\nreturn typeof main === "function" ? main : null;',
-            )();
-            if (typeof __bettboxMain !== 'function') {
-              throw new Error('Script must define main(config)');
-            }
-            return __bettboxMain(__bettboxConfig);
-          })()
-        ''');
-        if (res.isError) throw res.stringResult;
-
-        return switch (res.rawResult) {
-              Pointer() => runtime.convertValue<Map<String, dynamic>>(res),
-              _ => Map<String, dynamic>.from(res.rawResult),
-            } ??
-            config;
-      });
-    });
+    final currentScript = globalState.config.scriptProps.currentScript;
+    if (currentScript == null) {
+      return config;
+    }
+    if (config["proxy-providers"] == null) {
+      config["proxy-providers"] = {};
+    }
+    final configJs = json.encode(config);
+    final runtime = getJavascriptRuntime();
+    final res = await runtime.evaluateAsync("""
+      ${currentScript.content}
+      main($configJs)
+    """);
+    if (res.isError) {
+      throw res.stringResult;
+    }
+    final value = switch (res.rawResult is Pointer) {
+      true => runtime.convertValue<Map<String, dynamic>>(res),
+      false => Map<String, dynamic>.from(res.rawResult),
+    };
+    return value ?? config;
   }
 }
-
-class DashboardRefreshManager {
-  Timer? _timer;
-  bool _isRunning = false;
-  int _counter = 0;
-  int _tickToken = 0;
-
-  final tick1s = ValueNotifier<int>(0);
-  final tick2s = ValueNotifier<int>(0);
-  final tick5s = ValueNotifier<int>(0);
-
-  bool get isRunning => _isRunning;
-
-  Future<bool> _isActive() async {
-    final lifecycleState = WidgetsBinding.instance.lifecycleState;
-    if (lifecycleState != null && lifecycleState != AppLifecycleState.resumed) {
-      return false;
-    }
-    if (system.isDesktop) {
-      final visible = await window?.isVisible;
-      if (visible == false) {
-        return false;
-      }
-      final minimized = await window?.isMinimized ?? false;
-      if (minimized) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  Future<void> _tryTick(int token) async {
-    if (!await _isActive()) {
-      return;
-    }
-    if (token != _tickToken) return;
-    _counter++;
-    tick1s.value++;
-    if (_counter % 2 == 0) {
-      tick2s.value++;
-    }
-    if (_counter % 5 == 0) {
-      tick5s.value++;
-    }
-  }
-
-  void start() {
-    if (_isRunning) return;
-    _isRunning = true;
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      _tryTick(_tickToken);
-    });
-  }
-
-  void stop() {
-    if (!_isRunning) return;
-    _tickToken++;
-    _timer?.cancel();
-    _timer = null;
-    _isRunning = false;
-  }
-}
-
-final dashboardRefreshManager = DashboardRefreshManager();
 
 final globalState = GlobalState();
 
 class DetectionState {
-  static DetectionState? _instance;
-  bool? _preIsStart;
-  int _requestId = 0;
-  CancelToken? _cancelToken;
-  bool _isIpMasked = false;
-  IpInfo? _originalIpInfo;
-  bool _isFirstLaunch = true;
-
-  final state = ValueNotifier<NetworkDetectionState>(
-    const NetworkDetectionState(
-      isLoading: true,
-      ipInfo: null,
-      errorMessage: null,
-    ),
-  );
-
-  DetectionState._internal();
 
   factory DetectionState() {
     _instance ??= DetectionState._internal();
     return _instance!;
   }
 
-  bool get isIpMasked => _isIpMasked;
+  DetectionState._internal();
+  static DetectionState? _instance;
+  bool? _preIsStart;
+  Timer? _setTimeoutTimer;
+  CancelToken? cancelToken;
+  DateTime? _lastManualCheck;
 
-  void toggleIpPrivacy() {
-    _isIpMasked = !_isIpMasked;
-    final currentIpInfo = state.value.ipInfo;
-    if (currentIpInfo != null) {
-      if (_isIpMasked) {
-        _originalIpInfo = currentIpInfo;
-        state.value = state.value.copyWith(
-          ipInfo: currentIpInfo.copyWith(ip: '*** *** *** ***'),
-        );
-      } else if (_originalIpInfo != null) {
-        state.value = state.value.copyWith(ipInfo: _originalIpInfo);
-        _originalIpInfo = null;
-      }
-    }
-  }
-
-  void manualRefresh() {
-    _isIpMasked = false;
-    _originalIpInfo = null;
-    state.value = state.value.copyWith(
+  final state = ValueNotifier<NetworkDetectionState>(
+    const NetworkDetectionState(
+      isTesting: false,
       isLoading: true,
       ipInfo: null,
-      errorMessage: null,
+    ),
+  );
+
+  void startCheck() {
+    debouncer.call(
+      FunctionTag.checkIp,
+      _checkIp,
+      duration: const Duration(
+        milliseconds: 1200,
+      ),
     );
-    startCheck();
   }
 
-  Future<void> switchToDomesticIp() async {
-    _isIpMasked = false;
-    _originalIpInfo = null;
-
-    _cancelPreviousRequest();
-    _cancelToken = CancelToken();
-    final requestId = ++_requestId;
-
-    state.value = state.value.copyWith(
-      isLoading: true,
-      ipInfo: null,
-      errorMessage: null,
-    );
-
-    final res = await request.checkIpDomestic(cancelToken: _cancelToken);
-
-    if (requestId != _requestId) return;
-
-    _handleResponse(res);
-  }
-
-  void startCheck({bool immediate = false}) {
-    final appState = globalState.appState;
-    if (!appState.isInit) return;
-
-    final delay = immediate
-        ? Duration.zero
-        : const Duration(milliseconds: 1000);
-
-    debouncer.call(FunctionTag.checkIp, _checkIp, duration: delay);
-  }
-
-  void tryStartCheck() {
-    if (!state.value.isLoading &&
-        state.value.ipInfo == null &&
-        (_preIsStart == null || state.value.errorMessage != null)) {
-      startCheck();
-    }
-  }
-
-  void _cancelPreviousRequest() {
-    _cancelToken?.cancel();
-    _cancelToken = null;
-  }
-
-  void _handleResponse(Result<IpInfo?> res) {
-    if (res.isError) {
-      if (res.message == 'cancelled') {
-        state.value = state.value.copyWith(
-          isLoading: false,
-          ipInfo: null,
-          errorMessage: null,
-        );
-        return;
+  bool forceCheck() {
+    if (_lastManualCheck != null) {
+      final timeSinceLastCheck = DateTime.now().difference(_lastManualCheck!);
+      if (timeSinceLastCheck.inSeconds < 15) {
+        return false;
       }
-      state.value = state.value.copyWith(
-        isLoading: false,
-        ipInfo: null,
-        errorMessage: appLocalizations.tryManualRefresh,
-      );
-      return;
     }
-
-    final ipInfo = res.data;
-    state.value = state.value.copyWith(
-      isLoading: false,
-      ipInfo: ipInfo,
-      errorMessage: ipInfo != null ? null : appLocalizations.tryManualRefresh,
-    );
+    _lastManualCheck = DateTime.now();
+    _checkIp();
+    return true;
   }
 
   Future<void> _checkIp() async {
     final appState = globalState.appState;
-
-    if (!appState.isInit) return;
-
+    final isInit = appState.isInit;
+    if (!isInit) return;
     final isStart = appState.runTime != null;
-
-    final isStateChanged = _preIsStart != isStart;
-    _preIsStart = isStart;
-
-    if (!isStart && state.value.ipInfo != null && !state.value.isLoading && !isStateChanged) {
+    if (_preIsStart == false &&
+        _preIsStart == isStart &&
+        state.value.ipInfo != null) {
       return;
     }
-
-    _cancelPreviousRequest();
-    _cancelToken = CancelToken();
-    final requestId = ++_requestId;
-
+    _clearSetTimeoutTimer();
     state.value = state.value.copyWith(
       isLoading: true,
-      errorMessage: null,
-      ipInfo: isStateChanged ? null : state.value.ipInfo,
+      ipInfo: null,
     );
+    _preIsStart = isStart;
+    if (cancelToken != null) {
+      cancelToken!.cancel();
+      cancelToken = null;
+    }
+    cancelToken = CancelToken();
+    state.value = state.value.copyWith(
+      isTesting: true,
+    );
+    final res = await request.checkIp(cancelToken: cancelToken);
+    if (res.isError) {
+      state.value = state.value.copyWith(
+        isLoading: true,
+        ipInfo: null,
+      );
+      return;
+    }
+    final ipInfo = res.data;
+    state.value = state.value.copyWith(
+      isTesting: false,
+    );
+    if (ipInfo != null) {
+      state.value = state.value.copyWith(
+        isLoading: false,
+        ipInfo: ipInfo,
+      );
+      return;
+    }
+    _clearSetTimeoutTimer();
+    _setTimeoutTimer = Timer(const Duration(milliseconds: 300), () {
+      state.value = state.value.copyWith(
+        isLoading: false,
+        ipInfo: null,
+      );
+    });
+  }
 
-    final timeout = const Duration(seconds: 5);
-
-    final res = isStart
-        ? await request.checkIp(cancelToken: _cancelToken, timeout: timeout)
-        : await request.checkIpDomestic(
-            cancelToken: _cancelToken,
-            timeout: timeout,
-          );
-
-    if (requestId != _requestId) return;
-
-    if (_isFirstLaunch && (res.isError || res.data == null)) {
-      _isFirstLaunch = false;
-      _handleResponse(res);
-
-      Future.delayed(const Duration(seconds: 3), () {
-        if (state.value.ipInfo == null && !state.value.isLoading) {
-          startCheck();
-        }
-      });
-    } else {
-      _isFirstLaunch = false;
-      _handleResponse(res);
+  void _clearSetTimeoutTimer() {
+    if (_setTimeoutTimer != null) {
+      _setTimeoutTimer?.cancel();
+      _setTimeoutTimer = null;
     }
   }
 }

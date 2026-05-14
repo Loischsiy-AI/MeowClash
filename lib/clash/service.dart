@@ -2,22 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:meow_clash/clash/interface.dart';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/models/core.dart';
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/clash/interface.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/models/core.dart';
+import 'package:flclashx/state.dart';
 
 class ClashService extends ClashHandlerInterface {
-  static ClashService? _instance;
-
-  Completer<ServerSocket> serverCompleter = Completer();
-
-  Completer<Socket> socketCompleter = Completer();
-
-  bool isStarting = false;
-  bool _isDestroying = false;
-
-  Process? process;
 
   factory ClashService() {
     _instance ??= ClashService._internal();
@@ -25,114 +15,109 @@ class ClashService extends ClashHandlerInterface {
   }
 
   ClashService._internal() {
-    _initServer();
+    unawaited(_initServer());
     reStart();
   }
+  static ClashService? _instance;
+
+  Completer<ServerSocket> serverCompleter = Completer();
+
+  Completer<Socket> socketCompleter = Completer();
+
+  bool isStarting = false;
+
+  Process? process;
 
   Future<void> _initServer() async {
-    runZonedGuarded(
-      () async {
-        final address = !system.isWindows
-            ? InternetAddress(unixSocketPath, type: InternetAddressType.unix)
-            : InternetAddress(localhost, type: InternetAddressType.IPv4);
-        await _deleteSocketFile();
-        final server = await ServerSocket.bind(address, 0, shared: true);
-        serverCompleter.complete(server);
-        await for (final socket in server) {
-          await _destroySocket();
-          socketCompleter.complete(socket);
-          socket
-              .transform(uint8ListToListIntConverter)
-              .transform(utf8.decoder)
-              .transform(LineSplitter())
-              .listen((data) {
-                handleResult(ActionResult.fromJson(json.decode(data.trim())));
-              });
-        }
-      },
-      (error, stack) {
-        commonPrint.log(error.toString());
-        if (error is SocketException &&
-            !_isDestroying &&
-            !globalState.isExiting) {
-          globalState.showNotifier(error.toString());
-          // globalState.appController.restartCore();
-        }
-      },
-    );
+    runZonedGuarded(() async {
+      final address = !Platform.isWindows
+          ? InternetAddress(
+              unixSocketPath,
+              type: InternetAddressType.unix,
+            )
+          : InternetAddress(
+              localhost,
+              type: InternetAddressType.IPv4,
+            );
+      await _deleteSocketFile();
+      final server = await ServerSocket.bind(
+        address,
+        0,
+        shared: true,
+      );
+      serverCompleter.complete(server);
+      await for (final socket in server) {
+        await _destroySocket();
+        socketCompleter.complete(socket);
+        socket
+            .transform(uint8ListToListIntConverter)
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(
+          (data) {
+            handleResult(
+              ActionResult.fromJson(
+                json.decode(data.trim()),
+              ),
+            );
+          },
+        );
+      }
+    }, (error, stack) {
+      commonPrint.log(error.toString());
+      if (error is SocketException) {
+        globalState.showNotifier(error.toString());
+        // globalState.appController.restartCore();
+      }
+    });
   }
 
   @override
-  reStart() async {
-    if (isStarting) return;
+  Future<void> reStart() async {
+    if (isStarting == true) {
+      return;
+    }
     isStarting = true;
-    _isDestroying = false;
-
-    await _destroySocket();
-
-    process?.kill();
-    for (var i = 0; i < 5; i++) {
-      if (process == null) break;
-      try {
-        process!.exitCode;
-        break;
-      } on StateError {
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-    }
-    process = null;
-
     socketCompleter = Completer();
-
+    if (process != null) {
+      await shutdown();
+    }
     final serverSocket = await serverCompleter.future;
-    final arg = system.isWindows
-        ? '${serverSocket.port}'
+    final arg = Platform.isWindows
+        ? "${serverSocket.port}"
         : serverSocket.address.address;
-
-    if (system.isWindows) {
-      final serviceOk = await windows?.registerService() ?? false;
-      if (serviceOk) {
-        final isSuccess = await request.startCoreByHelper(arg);
-        if (isSuccess) {
-          await _waitForCoreReady();
-          isStarting = false;
-          return;
-        }
+    if (Platform.isWindows && await system.checkIsAdmin()) {
+      final isSuccess = await request.startCoreByHelper(arg);
+      if (isSuccess) {
+        return;
       }
     }
-
+    
     final homeDirPath = await appPath.homeDirPath;
     final environment = Map<String, String>.from(Platform.environment);
+    // Set SAFE_PATHS to prevent "path is not subpath of home directory" errors
+    // This ensures the core can access provider files before SetHomeDir is called
     environment['SAFE_PATHS'] = homeDirPath;
-
-    process = await Process.start(appPath.corePath, [
-      arg,
-    ], environment: environment);
+    
+    process = await Process.start(
+      appPath.corePath,
+      [
+        arg,
+      ],
+      environment: environment,
+    );
     process?.stdout.listen((_) {});
     process?.stderr.listen((e) {
       final error = utf8.decode(e);
-      if (error.isNotEmpty) commonPrint.log(error);
+      if (error.isNotEmpty) {
+        commonPrint.log(error);
+      }
     });
-    await _waitForCoreReady();
     isStarting = false;
   }
 
-  Future<void> _waitForCoreReady() async {
-    const maxAttempts = 10;
-    const interval = Duration(milliseconds: 500);
-
-    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
-      if (socketCompleter.isCompleted) return;
-      await Future.delayed(interval);
-    }
-    commonPrint.log(
-      'Core ready timeout after ${maxAttempts * interval.inMilliseconds}ms',
-    );
-  }
-
   @override
-  destroy() async {
-    _isDestroying = true;
+  Future<bool> destroy() async {
     final server = await serverCompleter.future;
     await server.close();
     await _deleteSocketFile();
@@ -140,24 +125,13 @@ class ClashService extends ClashHandlerInterface {
   }
 
   @override
-  sendMessage(String message) async {
-    if (_isDestroying || globalState.isExiting) {
-      return;
-    }
+  Future<void> sendMessage(String message) async {
     final socket = await socketCompleter.future;
-    try {
-      socket.writeln(message);
-    } on SocketException catch (e) {
-      if (_isDestroying || globalState.isExiting) {
-        commonPrint.log('Ignore socket error during shutdown: $e');
-        return;
-      }
-      rethrow;
-    }
+    socket.writeln(message);
   }
 
   Future<void> _deleteSocketFile() async {
-    if (!system.isWindows) {
+    if (!Platform.isWindows) {
       final file = File(unixSocketPath);
       if (await file.exists()) {
         await file.delete();
@@ -174,9 +148,8 @@ class ClashService extends ClashHandlerInterface {
   }
 
   @override
-  shutdown() async {
-    _isDestroying = true;
-    if (system.isWindows) {
+  Future<bool> shutdown() async {
+    if (Platform.isWindows) {
       await request.stopCoreByHelper();
     }
     await _destroySocket();

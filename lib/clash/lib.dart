@@ -1,76 +1,61 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:ui';
 
 import 'package:ffi/ffi.dart';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/plugins/service.dart';
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/plugins/service.dart';
+import 'package:flclashx/state.dart';
 
 import 'generated/clash_ffi.dart';
 import 'interface.dart';
 
 class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
+
+  factory ClashLib() {
+    _instance ??= ClashLib._internal();
+    return _instance!;
+  }
+
+  ClashLib._internal() {
+    _initService();
+  }
   static ClashLib? _instance;
   Completer<bool> _canSendCompleter = Completer();
   SendPort? sendPort;
   final receiverPort = ReceivePort();
 
-  ClashLib._internal() {
-    _initService();
-  }
-
   @override
-  preload() {
-    return _canSendCompleter.future;
-  }
+  Future<bool> preload() => _canSendCompleter.future;
 
   Future<void> _initService() async {
-    commonPrint.log('ClashLib._initService: start ===');
+    await service?.destroy();
     _registerMainPort(receiverPort.sendPort);
-    commonPrint.log('ClashLib._initService: main port registered ===');
     receiverPort.listen((message) {
-      commonPrint.log('[ClashLib]  received message type=${message.runtimeType} ===');
       if (message is SendPort) {
-        commonPrint.log('[ClashLib]  received SendPort! ===');
         if (_canSendCompleter.isCompleted) {
           sendPort = null;
           _canSendCompleter = Completer();
         }
         sendPort = message;
         _canSendCompleter.complete(true);
+      } else if (message is Map) {
+        // Ignore IPC responses (Map type) - they don't need processing
+        return;
       } else {
-        handleResult(ActionResult.fromJson(json.decode(message)));
+        handleResult(
+          ActionResult.fromJson(json.decode(
+            message,
+          )),
+        );
       }
     });
-    final alreadyRunning = await service?.isServiceEngineRunning() ?? false;
-    commonPrint.log('ClashLib._initService: alreadyRunning=$alreadyRunning ===');
-    if (alreadyRunning) {
-      await service?.reconnectIpc();
-    } else {
-      await service?.destroy();
-      commonPrint.log('ClashLib._initService: calling service.init() ===');
-      await service?.init();
-      commonPrint.log('ClashLib._initService: service.init() done ===');
-    }
-    await _waitForIpc();
-    commonPrint.log('ClashLib._initService: done ===');
-  }
-
-  Future<void> _waitForIpc() async {
-    for (var attempt = 0; attempt < 3; attempt++) {
-      final connected = await _canSendCompleter.future
-          .timeout(const Duration(seconds: 2), onTimeout: () => false);
-      if (connected) return;
-      commonPrint.log('ClashLib: IPC attempt ${attempt + 1}/3 failed, retrying...');
-      _canSendCompleter = Completer();
-      await service?.reconnectIpc();
-    }
-    commonPrint.log('ClashLib: IPC failed after 3 attempts');
+    await service?.init();
   }
 
   void _registerMainPort(SendPort sendPort) {
@@ -78,19 +63,14 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
     IsolateNameServer.registerPortWithName(sendPort, mainIsolate);
   }
 
-  factory ClashLib() {
-    _instance ??= ClashLib._internal();
-    return _instance!;
-  }
-
   @override
-  destroy() async {
+  Future<bool> destroy() async {
     await service?.destroy();
     return true;
   }
 
   @override
-  reStart() {
+  void reStart() {
     _initService();
   }
 
@@ -102,18 +82,15 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
   }
 
   @override
-  sendMessage(String message) async {
+  Future<void> sendMessage(String message) async {
     await _canSendCompleter.future;
-    try {
-      sendPort?.send(message);
-    } catch (e) {
-      commonPrint.log('ClashLib: sendMessage failed: $e, reconnecting IPC');
-      sendPort = null;
-      _canSendCompleter = Completer();
-      await service?.reconnectIpc();
-      await _waitForIpc();
-      sendPort?.send(message);
-    }
+    sendPort?.send(message);
+  }
+
+  /// Send a custom IPC message to service (for foreground notification updates)
+  Future<void> sendIpcMessage(Map<String, dynamic> message) async {
+    await _canSendCompleter.future;
+    sendPort?.send(message);
   }
 
   // @override
@@ -124,47 +101,52 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
   // }
 
   @override
-  Future<AndroidVpnOptions?> getAndroidVpnOptions() async {
-    final res = await invoke<String>(method: ActionMethod.getAndroidVpnOptions);
-    if (res.isEmpty) return null;
-    return AndroidVpnOptions.fromJson(json.decode(res));
-  }
+  Future<String> getAndroidVpnOptions() => invoke<String>(
+        method: ActionMethod.getAndroidVpnOptions,
+      );
 
   @override
-  Future<bool> updateDns(String value) {
-    return invoke<bool>(method: ActionMethod.updateDns, data: value);
-  }
+  Future<bool> updateDns(String value) => invoke<bool>(
+      method: ActionMethod.updateDns,
+      data: value,
+    );
 
   @override
   Future<DateTime?> getRunTime() async {
-    final runTimeString = await invoke<String>(method: ActionMethod.getRunTime);
-    if (runTimeString.isEmpty) return null;
+    final runTimeString = await invoke<String>(
+      method: ActionMethod.getRunTime,
+    );
+    if (runTimeString.isEmpty) {
+      return null;
+    }
     return DateTime.fromMillisecondsSinceEpoch(int.parse(runTimeString));
   }
 
   @override
-  Future<String> getCurrentProfileName() {
-    return invoke<String>(method: ActionMethod.getCurrentProfileName);
-  }
+  Future<String> getCurrentProfileName() => invoke<String>(
+      method: ActionMethod.getCurrentProfileName,
+    );
 }
 
 class ClashLibHandler {
-  static ClashLibHandler? _instance;
-
-  late final ClashFFI clashFFI;
-
-  late final DynamicLibrary lib;
-
-  ClashLibHandler._internal() {
-    lib = DynamicLibrary.open('libclash.so');
-    clashFFI = ClashFFI(lib);
-    clashFFI.initNativeApiBridge(NativeApi.initializeApiDLData);
-  }
 
   factory ClashLibHandler() {
     _instance ??= ClashLibHandler._internal();
     return _instance!;
   }
+
+  ClashLibHandler._internal() {
+    lib = DynamicLibrary.open("libclash.so");
+    clashFFI = ClashFFI(lib);
+    clashFFI.initNativeApiBridge(
+      NativeApi.initializeApiDLData,
+    );
+  }
+  static ClashLibHandler? _instance;
+
+  late final ClashFFI clashFFI;
+
+  late final DynamicLibrary lib;
 
   Future<String> invokeAction(String actionParams) {
     final completer = Completer<String>();
@@ -176,13 +158,18 @@ class ClashLibHandler {
       }
     });
     final actionParamsChar = actionParams.toNativeUtf8().cast<Char>();
-    clashFFI.invokeAction(actionParamsChar, receiver.sendPort.nativePort);
+    clashFFI.invokeAction(
+      actionParamsChar,
+      receiver.sendPort.nativePort,
+    );
     malloc.free(actionParamsChar);
     return completer.future;
   }
 
   void attachMessagePort(int messagePort) {
-    clashFFI.attachMessagePort(messagePort);
+    clashFFI.attachMessagePort(
+      messagePort,
+    );
   }
 
   void updateDns(String dns) {
@@ -204,18 +191,20 @@ class ClashLibHandler {
     return currentProfile;
   }
 
-  AndroidVpnOptions getAndroidVpnOptions() {
+  String getAndroidVpnOptions() {
     final vpnOptionsRaw = clashFFI.getAndroidVpnOptions();
-    final vpnOptions = json.decode(vpnOptionsRaw.cast<Utf8>().toDartString());
+    final vpnOptions = vpnOptionsRaw.cast<Utf8>().toDartString();
     clashFFI.freeCString(vpnOptionsRaw);
-    return AndroidVpnOptions.fromJson(vpnOptions);
+    return vpnOptions;
   }
 
   Traffic getTraffic() {
     final trafficRaw = clashFFI.getTraffic();
     final trafficString = trafficRaw.cast<Utf8>().toDartString();
     clashFFI.freeCString(trafficRaw);
-    if (trafficString.isEmpty) return Traffic();
+    if (trafficString.isEmpty) {
+      return Traffic();
+    }
     return Traffic.fromMap(json.decode(trafficString));
   }
 
@@ -223,7 +212,9 @@ class ClashLibHandler {
     final trafficRaw = clashFFI.getTotalTraffic();
     final trafficString = trafficRaw.cast<Utf8>().toDartString();
     clashFFI.freeCString(trafficRaw);
-    if (trafficString.isEmpty) return Traffic();
+    if (trafficString.isEmpty) {
+      return Traffic();
+    }
     return Traffic.fromMap(json.decode(trafficString));
   }
 
@@ -240,7 +231,6 @@ class ClashLibHandler {
   DateTime? getRunTime() {
     final runTimeRaw = clashFFI.getRunTime();
     final runTimeString = runTimeRaw.cast<Utf8>().toDartString();
-    clashFFI.freeCString(runTimeRaw);
     if (runTimeString.isEmpty) {
       return null;
     }
@@ -252,10 +242,13 @@ class ClashLibHandler {
     final pathChar = path.toNativeUtf8().cast<Char>();
     final configRaw = clashFFI.getConfig(pathChar);
     final configString = configRaw.cast<Utf8>().toDartString();
+    if (configString.isEmpty) {
+      return {};
+    }
+    final config = json.decode(configString);
     malloc.free(pathChar);
     clashFFI.freeCString(configRaw);
-    if (configString.isEmpty) return {};
-    return json.decode(configString);
+    return config;
   }
 
   Future<String> quickStart(
@@ -291,7 +284,7 @@ class ClashLibHandler {
 }
 
 ClashLib? get clashLib =>
-    system.isAndroid && !globalState.isService ? ClashLib() : null;
+    Platform.isAndroid && !globalState.isService ? ClashLib() : null;
 
 ClashLibHandler? get clashLibHandler =>
-    system.isAndroid && globalState.isService ? ClashLibHandler() : null;
+    Platform.isAndroid && globalState.isService ? ClashLibHandler() : null;

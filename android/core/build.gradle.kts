@@ -1,22 +1,26 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
 }
 
 android {
-    namespace = "com.follow.clash.core"
-    compileSdk = libs.versions.compileSdk.get().toInt()
-    ndkVersion = libs.versions.ndkVersion.get()
+    namespace = "com.follow.clashx.core"
+    compileSdk = 36
+    ndkVersion = "28.0.13004108"
 
     defaultConfig {
-        minSdk = libs.versions.minSdk.get().toInt()
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        }
+        minSdk = 23
     }
 
+    buildTypes {
+        release {
+            isJniDebuggable = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
 
     sourceSets {
         getByName("main") {
@@ -31,30 +35,17 @@ android {
         }
     }
 
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    buildTypes {
-        release {
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
 }
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
-    }
-}
-
-
 dependencies {
-    implementation(libs.annotation.jvm)
+    implementation("androidx.annotation:annotation-jvm:1.9.1")
 }
 
 val copyNativeLibs by tasks.register<Copy>("copyNativeLibs") {

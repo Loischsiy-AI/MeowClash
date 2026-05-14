@@ -1,44 +1,43 @@
-import 'dart:async';
 import 'dart:io';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/state.dart';
+
+import 'package:flclashx/common/utils.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:tray_manager/tray_manager.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
-import 'common.dart';
+import 'app_localizations.dart';
+import 'constant.dart';
+import 'window.dart';
 
 class Tray {
-  Timer? _debounceTimer;
-  TrayState? _pendingState;
-  bool _isUpdating = false;
-
-  static const _debounceDelay = Duration(milliseconds: 300);
   Future _updateSystemTray({
     required Brightness? brightness,
-    required bool isStart,
+    required bool isRunning,
     bool force = false,
   }) async {
-    if (system.isAndroid) {
+    if (Platform.isAndroid || Platform.isMacOS) {
+      // Skip tray on Android and macOS (macOS uses native status bar)
       return;
     }
-    if (force) {
+    if (Platform.isLinux || force) {
       await trayManager.destroy();
     }
     await trayManager.setIcon(
       utils.getTrayIconPath(
-        brightness:
-            brightness ??
+        brightness: brightness ??
             WidgetsBinding.instance.platformDispatcher.platformBrightness,
-        isStart: isStart,
+        isRunning: isRunning,
       ),
-      isTemplate: system.isMacOS,
+      isTemplate: true,
     );
     if (!Platform.isLinux) {
-      await trayManager.setToolTip(appName);
+      await trayManager.setToolTip(
+        appName,
+      );
     }
   }
 
@@ -46,42 +45,18 @@ class Tray {
     required TrayState trayState,
     bool focus = false,
   }) async {
-    if (system.isAndroid) {
+    if (Platform.isAndroid || Platform.isMacOS) {
+      // Skip tray on Android and macOS (macOS uses native status bar)
       return;
     }
-
-    _debounceTimer?.cancel();
-
-    if (_isUpdating) {
-      _pendingState = trayState;
-      return;
+    if (!Platform.isLinux) {
+      await _updateSystemTray(
+        brightness: trayState.brightness,
+        isRunning: trayState.isStart,
+        force: focus,
+      );
     }
-
-    if (focus) {
-      await _doUpdate(trayState: trayState, focus: focus);
-    } else {
-      _debounceTimer = Timer(_debounceDelay, () async {
-        await _doUpdate(trayState: trayState, focus: focus);
-      });
-    }
-  }
-
-  Future<void> _doUpdate({
-    required TrayState trayState,
-    bool focus = false,
-  }) async {
-    if (_isUpdating) return;
-    _isUpdating = true;
-
-    try {
-      if (!Platform.isLinux) {
-        await _updateSystemTray(
-          brightness: trayState.brightness,
-          isStart: trayState.isStart,
-          force: focus,
-        );
-      }
-    List<MenuItem> menuItems = [];
+    final menuItems = <MenuItem>[];
     final showMenuItem = MenuItem(
       label: appLocalizations.show,
       onClick: (_) {
@@ -97,47 +72,21 @@ class Tray {
       checked: false,
     );
     menuItems.add(startMenuItem);
-    menuItems.add(MenuItem.separator());
-    for (final mode in Mode.values) {
-      menuItems.add(
-        MenuItem.checkbox(
-          label: Intl.message(mode.name),
-          onClick: (_) {
-            globalState.appController.changeMode(mode);
-          },
-          checked: mode == trayState.mode,
-        ),
-      );
-    }
-    menuItems.add(MenuItem.separator());
-    for (final group in trayState.groups) {
-      List<MenuItem> subMenuItems = [];
-      for (final proxy in group.all) {
-        subMenuItems.add(
+    if (trayState.globalModeEnabled) {
+      menuItems.add(MenuItem.separator());
+      for (final mode in Mode.values) {
+        menuItems.add(
           MenuItem.checkbox(
-            label: proxy.name,
-            checked: trayState.selectedMap[group.name] == proxy.name,
+            label: Intl.message(mode.name),
             onClick: (_) {
-              final appController = globalState.appController;
-              appController.updateCurrentSelectedMap(group.name, proxy.name);
-              appController.changeProxy(
-                groupName: group.name,
-                proxyName: proxy.name,
-              );
+              globalState.appController.changeMode(mode);
             },
+            checked: mode == trayState.mode,
           ),
         );
       }
-      menuItems.add(
-        MenuItem.submenu(
-          label: group.name,
-          submenu: Menu(items: subMenuItems),
-        ),
-      );
     }
-    if (trayState.groups.isNotEmpty) {
-      menuItems.add(MenuItem.separator());
-    }
+    menuItems.add(MenuItem.separator());
     if (trayState.isStart) {
       menuItems.add(
         MenuItem.checkbox(
@@ -174,19 +123,14 @@ class Tray {
     );
     menuItems.add(autoStartMenuItem);
     menuItems.add(copyEnvVarMenuItem);
-
-    if (!system.isAndroid) {
-      final wakelockMenuItem = MenuItem.checkbox(
-        label: appLocalizations.wakelock,
-        onClick: (_) async {
-          await _toggleWakelock();
-        },
-        checked: trayState.wakelockEnabled,
-      );
-      menuItems.add(wakelockMenuItem);
-    }
-
     menuItems.add(MenuItem.separator());
+    final restartMenuItem = MenuItem(
+      label: appLocalizations.restart,
+      onClick: (_) async {
+        await globalState.appController.handleRestart();
+      },
+    );
+    menuItems.add(restartMenuItem);
     final exitMenuItem = MenuItem(
       label: appLocalizations.exit,
       onClick: (_) async {
@@ -199,46 +143,37 @@ class Tray {
     if (Platform.isLinux) {
       await _updateSystemTray(
         brightness: trayState.brightness,
-        isStart: trayState.isStart,
+        isRunning: trayState.isStart,
         force: focus,
       );
     }
-    } finally {
-      _isUpdating = false;
+  }
 
-      if (_pendingState != null) {
-        final pending = _pendingState;
-        _pendingState = null;
-        await _doUpdate(trayState: pending!, focus: false);
-      }
-    }
+  Future<void> updateTrayTitle([Traffic? traffic]) async {
+    // if (!Platform.isMacOS) {
+    //   return;
+    // }
+    // if (traffic == null) {
+    //   await trayManager.setTitle("");
+    // } else {
+    //   await trayManager.setTitle(
+    //     "${traffic.up.shortShow} ↑ \n${traffic.down.shortShow} ↓",
+    //   );
+    // }
   }
 
   Future<void> _copyEnv(int port) async {
-    final url = 'http://127.0.0.1:$port';
+    final url = "http://127.0.0.1:$port";
 
-    final cmdline = system.isWindows
-        ? 'set \$env:all_proxy=$url'
-        : 'export all_proxy=$url';
+    final cmdline = Platform.isWindows
+        ? "set \$env:all_proxy=$url"
+        : "export all_proxy=$url";
 
-    await Clipboard.setData(ClipboardData(text: cmdline));
-  }
-
-  Future<void> _toggleWakelock() async {
-    try {
-      final enabled = await WakelockPlus.enabled;
-      if (enabled) {
-        await WakelockPlus.disable();
-        globalState.appController.stopWakelockAutoRecovery();
-      } else {
-        await WakelockPlus.enable();
-        globalState.appController.startWakelockAutoRecovery();
-      }
-      globalState.updateWakelockState(!enabled);
-      await globalState.appController.updateTray();
-    } catch (e) {
-      commonPrint.log('WakeLock toggle error: $e');
-    }
+    await Clipboard.setData(
+      ClipboardData(
+        text: cmdline,
+      ),
+    );
   }
 }
 

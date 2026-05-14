@@ -1,7 +1,7 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/providers/app.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/widgets.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/providers/app.dart';
+import 'package:flclashx/state.dart';
+import 'package:flclashx/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,14 +9,18 @@ class IntranetIP extends StatelessWidget {
   const IntranetIP({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
+  Widget build(BuildContext context) => SizedBox(
       height: getWidgetHeight(1),
       child: CommonCard(
-        info: Info(label: appLocalizations.intranetIP, iconData: Icons.devices),
+        info: Info(
+          label: appLocalizations.intranetIP,
+          iconData: Icons.devices,
+        ),
         onPressed: () {},
         child: Container(
-          padding: baseInfoEdgeInsets.copyWith(top: 0),
+          padding: baseInfoEdgeInsets.copyWith(
+            top: 0,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.end,
@@ -24,7 +28,7 @@ class IntranetIP extends StatelessWidget {
               SizedBox(
                 height: globalState.measure.bodyMediumHeight + 2,
                 child: Consumer(
-                  builder: (_, ref, _) {
+                  builder: (_, ref, __) {
                     final localIp = ref.watch(localIpProvider);
                     return FadeThroughBox(
                       child: localIp != null
@@ -40,8 +44,8 @@ class IntranetIP extends StatelessWidget {
                               ),
                             )
                           : Container(
-                              padding: EdgeInsets.all(2),
-                              child: AspectRatio(
+                              padding: const EdgeInsets.all(2),
+                              child: const AspectRatio(
                                 aspectRatio: 1,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
@@ -51,11 +55,10 @@ class IntranetIP extends StatelessWidget {
                     );
                   },
                 ),
-              ),
+              )
             ],
           ),
         ),
       ),
     );
-  }
 }

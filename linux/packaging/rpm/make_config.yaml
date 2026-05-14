@@ -1,7 +1,7 @@
-display_name: MeowClash
+display_name: FlClashX
 
-packager: Loischsiy
-packagerEmail: dmitriy.work@gmail.com
+packager: pluralplay
+packagerEmail: mail@pluralplay.rw
 license: Other
 
 priority: optional
@@ -11,12 +11,11 @@ essential: false
 icon: ./assets/images/icon.png
 
 keywords:
-  - MeowClash
+  - FlClashX
   - Clash
-  - ClashMeta
-  - Proxy
+    - Proxy
 
-generic_name: MeowClash
+generic_name: FlClashX
 
 group: Applications/Internet
 

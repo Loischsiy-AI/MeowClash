@@ -1,14 +1,14 @@
-import 'package:meow_clash/plugins/app.dart';
-import 'package:meow_clash/state.dart';
+import 'dart:io';
 
-import 'system.dart';
+import 'package:flclashx/plugins/app.dart';
+import 'package:flclashx/state.dart';
 
 class Android {
   Future<void> init() async {
-    app.onExit = () async {
+    app?.onExit = () async {
       await globalState.appController.savePreferences();
     };
   }
 }
 
-final android = system.isAndroid ? Android() : null;
+final android = Platform.isAndroid ? Android() : null;

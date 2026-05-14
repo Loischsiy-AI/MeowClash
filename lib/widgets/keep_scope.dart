@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
 class KeepScope extends StatefulWidget {
+
+  const KeepScope({
+    super.key,
+    required this.child,
+    this.keep = true,
+  });
   final Widget child;
   final bool keep;
-
-  const KeepScope({super.key, required this.child, this.keep = true});
 
   @override
   State<KeepScope> createState() => _KeepContainerState();

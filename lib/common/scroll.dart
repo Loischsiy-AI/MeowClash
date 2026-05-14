@@ -1,20 +1,20 @@
 import 'dart:math';
 import 'dart:ui';
 
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/widgets/scroll.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/widgets/scroll.dart';
 import 'package:flutter/material.dart';
 
 class BaseScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
-    PointerDeviceKind.touch,
-    PointerDeviceKind.stylus,
-    PointerDeviceKind.invertedStylus,
-    PointerDeviceKind.trackpad,
-    if (system.isDesktop) PointerDeviceKind.mouse,
-    PointerDeviceKind.unknown,
-  };
+        PointerDeviceKind.touch,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.invertedStylus,
+        PointerDeviceKind.trackpad,
+        if (system.isDesktop) PointerDeviceKind.mouse,
+        PointerDeviceKind.unknown,
+      };
 }
 
 class HiddenBarScrollBehavior extends BaseScrollBehavior {
@@ -23,9 +23,7 @@ class HiddenBarScrollBehavior extends BaseScrollBehavior {
     BuildContext context,
     Widget child,
     ScrollableDetails details,
-  ) {
-    return child;
-  }
+  ) => child;
 }
 
 class ShowBarScrollBehavior extends BaseScrollBehavior {
@@ -34,25 +32,22 @@ class ShowBarScrollBehavior extends BaseScrollBehavior {
     BuildContext context,
     Widget child,
     ScrollableDetails details,
-  ) {
-    return CommonScrollBar(controller: details.controller, child: child);
-  }
+  ) => CommonAutoHiddenScrollBar(
+      controller: details.controller,
+      child: child,
+    );
 }
 
 class NextClampingScrollPhysics extends ClampingScrollPhysics {
   const NextClampingScrollPhysics({super.parent});
 
   @override
-  NextClampingScrollPhysics applyTo(ScrollPhysics? ancestor) {
-    return NextClampingScrollPhysics(parent: buildParent(ancestor));
-  }
+  NextClampingScrollPhysics applyTo(ScrollPhysics? ancestor) => NextClampingScrollPhysics(parent: buildParent(ancestor));
 
   @override
   Simulation? createBallisticSimulation(
-    ScrollMetrics position,
-    double velocity,
-  ) {
-    final Tolerance tolerance = toleranceFor(position);
+      ScrollMetrics position, double velocity) {
+    final tolerance = toleranceFor(position);
     if (position.outOfRange) {
       double? end;
       if (position.pixels > position.maxScrollExtent) {
@@ -99,8 +94,7 @@ class ReverseScrollController extends ScrollController {
     ScrollPhysics physics,
     ScrollContext context,
     ScrollPosition? oldPosition,
-  ) {
-    return ReverseScrollPosition(
+  ) => ReverseScrollPosition(
       physics: physics,
       context: context,
       initialPixels: initialScrollOffset,
@@ -108,7 +102,6 @@ class ReverseScrollController extends ScrollController {
       oldPosition: oldPosition,
       debugLabel: debugLabel,
     );
-  }
 }
 
 class ReverseScrollPosition extends ScrollPositionWithSingleContext {

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
 class DisabledMask extends StatefulWidget {
+
+  const DisabledMask({
+    super.key,
+    required this.child,
+    this.status = true,
+  });
   final Widget child;
   final bool status;
-
-  const DisabledMask({super.key, required this.child, this.status = true});
 
   @override
   State<DisabledMask> createState() => _DisabledMaskState();
@@ -15,7 +19,10 @@ class _DisabledMaskState extends State<DisabledMask> {
 
   @override
   Widget build(BuildContext context) {
-    final child = Container(key: childKey, child: widget.child);
+    final child = Container(
+      key: childKey,
+      child: widget.child,
+    );
     if (!widget.status) {
       return child;
     }

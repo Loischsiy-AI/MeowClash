@@ -1,4 +1,4 @@
-import 'package:meow_clash/enum/enum.dart';
+import 'package:flclashx/enum/enum.dart';
 import 'package:flutter/material.dart';
 import 'color.dart';
 
@@ -11,8 +11,11 @@ extension TextStyleExtension on TextStyle {
 
   TextStyle get toBold => copyWith(fontWeight: FontWeight.bold);
 
-  TextStyle get toJetBrainsMono =>
-      copyWith(fontFamily: FontFamily.jetBrainsMono.value);
+  TextStyle get toJetBrainsMono => copyWith(
+        fontFamily: FontFamily.jetBrainsMono.value,
+      );
 
-  TextStyle adjustSize(int size) => copyWith(fontSize: fontSize! + size);
+  TextStyle adjustSize(int size) => copyWith(
+        fontSize: fontSize! + size,
+      );
 }

@@ -1,70 +1,22 @@
 import 'dart:math';
-
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/common/theme.dart';
-import 'package:meow_clash/providers/config.dart';
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/common/constant.dart';
+import 'package:flclashx/common/measure.dart';
+import 'package:flclashx/common/theme.dart';
+import 'package:flclashx/providers/config.dart';
+import 'package:flclashx/state.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/state.dart';
-
 class ThemeManager extends ConsumerWidget {
+
+  const ThemeManager({
+    super.key,
+    required this.child,
+  });
   final Widget child;
 
-  const ThemeManager({super.key, required this.child});
-
-  Widget _buildSystemUi(Widget child) {
-    if (!system.isAndroid) {
-      return child;
-    }
-    return AnnotatedRegion<SystemUiMode>(
-      sized: false,
-      value: SystemUiMode.edgeToEdge,
-      child: Consumer(
-        builder: (context, ref, _) {
-          final brightness = ref.watch(currentBrightnessProvider);
-          final iconBrightness = brightness == Brightness.light
-              ? Brightness.dark
-              : Brightness.light;
-          globalState.appState = globalState.appState.copyWith(
-            systemUiOverlayStyle: SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: iconBrightness,
-              systemNavigationBarIconBrightness: iconBrightness,
-              systemNavigationBarColor: context.colorScheme.surface,
-              systemNavigationBarDividerColor: Colors.transparent,
-            ),
-          );
-          return AnnotatedRegion<SystemUiOverlayStyle>(
-            value: globalState.appState.systemUiOverlayStyle,
-            sized: false,
-            child: child,
-          );
-        },
-      ),
-    );
-  }
-
-  // _buildScrollbar(Widget child) {
-  //   return Consumer(
-  //     builder: (_, ref, child) {
-  //       final isMobileView = ref.read(isMobileViewProvider);
-  //       if (isMobileView) {
-  //         return ScrollConfiguration(
-  //           behavior: HiddenBarScrollBehavior(),
-  //           child: child!,
-  //         );
-  //       }
-  //       return child!;
-  //     },
-  //     child: child,
-  //   );
-  // }
-
   @override
-  Widget build(BuildContext context, ref) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final textScale = ref.read(
       themeSettingProvider.select((state) => state.textScale),
     );
@@ -82,7 +34,9 @@ class ThemeManager extends ConsumerWidget {
     final height = MediaQuery.of(context).size.height;
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(
-        textScaler: TextScaler.linear(textScaleFactor),
+        textScaler: TextScaler.linear(
+          textScaleFactor,
+        ),
         padding: padding.copyWith(
           top: padding.top > height * 0.3 ? 20.0 : padding.top,
         ),
@@ -90,9 +44,12 @@ class ThemeManager extends ConsumerWidget {
       child: LayoutBuilder(
         builder: (_, container) {
           globalState.appController.updateViewSize(
-            Size(container.maxWidth, container.maxHeight),
+            Size(
+              container.maxWidth,
+              container.maxHeight,
+            ),
           );
-          return _buildSystemUi(child);
+          return child;
         },
       ),
     );

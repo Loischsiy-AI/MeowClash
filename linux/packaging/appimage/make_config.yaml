@@ -1,14 +1,14 @@
-display_name: MeowClash
+display_name: FlClashX
 
 icon: ./assets/images/icon.png
 
 keywords:
-  - MeowClash
+  - FlClashX
   - Clash
   - ClashMeta
   - Proxy
 
-generic_name: MeowClash
+generic_name: FlClashX
 
 categories:
   - Network

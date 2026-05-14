@@ -1,31 +1,27 @@
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/state.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 extension NumExt on num {
   String fixed({int decimals = 2}) {
-    return toStringAsFixed(decimals);
+    final formatted = toStringAsFixed(decimals);
+    if (formatted.contains('.')) {
+      return formatted.replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
+    }
+    return formatted;
   }
 
-  double get ap {
-    return this * (1 + (globalState.theme.textScaleFactor - 1) * 0.5);
-  }
+  double get ap => this * (1 + (globalState.theme.textScaleFactor - 1) * 0.5);
 }
 
 extension DoubleExt on double {
-  bool moreOrEqual(double value) {
-    return this > value || (value - this).abs() < precisionErrorTolerance + 1;
-  }
+  bool moreOrEqual(double value) => this > value || (value - this).abs() < precisionErrorTolerance + 1;
 }
 
 extension OffsetExt on Offset {
-  double getCrossAxisOffset(Axis direction) {
-    return direction == Axis.vertical ? dx : dy;
-  }
+  double getCrossAxisOffset(Axis direction) => direction == Axis.vertical ? dx : dy;
 
-  double getMainAxisOffset(Axis direction) {
-    return direction == Axis.vertical ? dy : dx;
-  }
+  double getMainAxisOffset(Axis direction) => direction == Axis.vertical ? dy : dx;
 
   bool less(Offset offset) {
     if (dy < offset.dy) {
@@ -39,10 +35,9 @@ extension OffsetExt on Offset {
 }
 
 extension RectExt on Rect {
-  bool doRectIntersect(Rect rect) {
-    return left < rect.right &&
-        right > rect.left &&
-        top < rect.bottom &&
-        bottom > rect.top;
-  }
+  bool doRectIntersect(Rect rect) =>
+      left < rect.right &&
+      right > rect.left &&
+      top < rect.bottom &&
+      bottom > rect.top;
 }

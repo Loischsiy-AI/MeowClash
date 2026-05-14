@@ -1,30 +1,41 @@
 import 'package:collection/collection.dart';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
 import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'generated/selector.freezed.dart';
 
 @freezed
-abstract class VM2<A, B> with _$VM2<A, B> {
-  const factory VM2({required A a, required B b}) = _VM2;
+class VM2<A, B> with _$VM2<A, B> {
+  const factory VM2({
+    required A a,
+    required B b,
+  }) = _VM2;
 }
 
 @freezed
-abstract class VM3<A, B, C> with _$VM3<A, B, C> {
-  const factory VM3({required A a, required B b, required C c}) = _VM3;
+class VM3<A, B, C> with _$VM3<A, B, C> {
+  const factory VM3({
+    required A a,
+    required B b,
+    required C c,
+  }) = _VM3;
 }
 
 @freezed
-abstract class VM4<A, B, C, D> with _$VM4<A, B, C, D> {
-  const factory VM4({required A a, required B b, required C c, required D d}) =
-      _VM4;
+class VM4<A, B, C, D> with _$VM4<A, B, C, D> {
+  const factory VM4({
+    required A a,
+    required B b,
+    required C c,
+    required D d,
+  }) = _VM4;
 }
 
 @freezed
-abstract class VM5<A, B, C, D, E> with _$VM5<A, B, C, D, E> {
+class VM5<A, B, C, D, E> with _$VM5<A, B, C, D, E> {
   const factory VM5({
     required A a,
     required B b,
@@ -35,15 +46,16 @@ abstract class VM5<A, B, C, D, E> with _$VM5<A, B, C, D, E> {
 }
 
 @freezed
-abstract class StartButtonSelectorState with _$StartButtonSelectorState {
+class StartButtonSelectorState with _$StartButtonSelectorState {
   const factory StartButtonSelectorState({
     required bool isInit,
     required bool hasProfile,
+    required bool hasProxiesInit,
   }) = _StartButtonSelectorState;
 }
 
 @freezed
-abstract class ProfilesSelectorState with _$ProfilesSelectorState {
+class ProfilesSelectorState with _$ProfilesSelectorState {
   const factory ProfilesSelectorState({
     required List<Profile> profiles,
     required String? currentProfileId,
@@ -52,16 +64,16 @@ abstract class ProfilesSelectorState with _$ProfilesSelectorState {
 }
 
 @freezed
-abstract class NetworkDetectionState with _$NetworkDetectionState {
+class NetworkDetectionState with _$NetworkDetectionState {
   const factory NetworkDetectionState({
     required bool isLoading,
+    required bool isTesting,
     required IpInfo? ipInfo,
-    String? errorMessage, // 错误消息，用于显示"请尝试手动刷新"
   }) = _NetworkDetectionState;
 }
 
 @freezed
-abstract class TrayState with _$TrayState {
+class TrayState with _$TrayState {
   const factory TrayState({
     required Mode mode,
     required int port,
@@ -73,58 +85,64 @@ abstract class TrayState with _$TrayState {
     required Brightness? brightness,
     required List<Group> groups,
     required SelectedMap selectedMap,
-    @Default(false) bool wakelockEnabled,
+    @Default(true) bool globalModeEnabled,
   }) = _TrayState;
 }
 
 @freezed
-abstract class NavigationState with _$NavigationState {
-  const factory NavigationState({
+class HomeState with _$HomeState {
+  const factory HomeState({
     required PageLabel pageLabel,
     required List<NavigationItem> navigationItems,
     required ViewMode viewMode,
     required String? locale,
-    required int currentIndex,
-  }) = _NavigationState;
+  }) = _HomeState;
 }
 
 @freezed
-abstract class GroupsState with _$GroupsState {
-  const factory GroupsState({required List<Group> value}) = _GroupsState;
+class ProxiesSelectorState with _$ProxiesSelectorState {
+  const factory ProxiesSelectorState({
+    required List<String> groupNames,
+    required String? currentGroupName,
+  }) = _ProxiesSelectorState;
 }
 
 @freezed
-abstract class NavigationItemsState with _$NavigationItemsState {
-  const factory NavigationItemsState({required List<NavigationItem> value}) =
-      _NavigationItemsState;
+class GroupNamesState with _$GroupNamesState {
+  const factory GroupNamesState({
+    required List<String> groupNames,
+  }) = _GroupNamesState;
 }
 
 @freezed
-abstract class ProxiesListState with _$ProxiesListState {
-  const factory ProxiesListState({
-    required List<Group> groups,
+class GroupsState with _$GroupsState {
+  const factory GroupsState({
+    required List<Group> value,
+  }) = _GroupsState;
+}
+
+@freezed
+class NavigationItemsState with _$NavigationItemsState {
+  const factory NavigationItemsState({
+    required List<NavigationItem> value,
+  }) = _NavigationItemsState;
+}
+
+@freezed
+class ProxiesListSelectorState with _$ProxiesListSelectorState {
+  const factory ProxiesListSelectorState({
+    required List<String> groupNames,
     required Set<String> currentUnfoldSet,
     required ProxiesSortType proxiesSortType,
     required ProxyCardType proxyCardType,
     required num sortNum,
     required int columns,
-  }) = _ProxiesListState;
+    required String query,
+  }) = _ProxiesListSelectorState;
 }
 
 @freezed
-abstract class ProxiesTabState with _$ProxiesTabState {
-  const factory ProxiesTabState({
-    required List<Group> groups,
-    required String? currentGroupName,
-    required ProxiesSortType proxiesSortType,
-    required ProxyCardType proxyCardType,
-    required num sortNum,
-    required int columns,
-  }) = _ProxiesTabState;
-}
-
-@freezed
-abstract class ProxyGroupSelectorState with _$ProxyGroupSelectorState {
+class ProxyGroupSelectorState with _$ProxyGroupSelectorState {
   const factory ProxyGroupSelectorState({
     required String? testUrl,
     required ProxiesSortType proxiesSortType,
@@ -137,14 +155,14 @@ abstract class ProxyGroupSelectorState with _$ProxyGroupSelectorState {
 }
 
 @freezed
-abstract class MoreToolsSelectorState with _$MoreToolsSelectorState {
+class MoreToolsSelectorState with _$MoreToolsSelectorState {
   const factory MoreToolsSelectorState({
     required List<NavigationItem> navigationItems,
   }) = _MoreToolsSelectorState;
 }
 
 @freezed
-abstract class PackageListSelectorState with _$PackageListSelectorState {
+class PackageListSelectorState with _$PackageListSelectorState {
   const factory PackageListSelectorState({
     required List<Package> packages,
     required AccessControl accessControl,
@@ -166,30 +184,30 @@ extension PackageListSelectorStateExt on PackageListSelectorState {
 
   List<Package> getSortList(List<String> selectedList) {
     final sort = accessControl.sort;
-    return list
-        .sorted((a, b) {
-          return switch (sort) {
-            AccessSortType.none => 0,
-            AccessSortType.name => utils.sortByChar(
+    return list.sorted(
+      (a, b) => switch (sort) {
+          AccessSortType.none => 0,
+          AccessSortType.name => utils.sortByChar(
               utils.getPinyin(a.label),
               utils.getPinyin(b.label),
             ),
-            AccessSortType.time => b.lastUpdateTime.compareTo(a.lastUpdateTime),
-          };
-        })
-        .sorted((a, b) {
-          final isSelectA = selectedList.contains(a.packageName);
-          final isSelectB = selectedList.contains(b.packageName);
-          if (isSelectA && isSelectB) return 0;
-          if (isSelectA) return -1;
-          if (isSelectB) return 1;
-          return 0;
-        });
+          AccessSortType.time => b.lastUpdateTime.compareTo(a.lastUpdateTime),
+        },
+    ).sorted(
+      (a, b) {
+        final isSelectA = selectedList.contains(a.packageName);
+        final isSelectB = selectedList.contains(b.packageName);
+        if (isSelectA && isSelectB) return 0;
+        if (isSelectA) return -1;
+        if (isSelectB) return 1;
+        return 0;
+      },
+    );
   }
 }
 
 @freezed
-abstract class ProxiesListHeaderSelectorState with _$ProxiesListHeaderSelectorState {
+class ProxiesListHeaderSelectorState with _$ProxiesListHeaderSelectorState {
   const factory ProxiesListHeaderSelectorState({
     required double offset,
     required int currentIndex,
@@ -197,7 +215,7 @@ abstract class ProxiesListHeaderSelectorState with _$ProxiesListHeaderSelectorSt
 }
 
 @freezed
-abstract class ProxiesActionsState with _$ProxiesActionsState {
+class ProxiesActionsState with _$ProxiesActionsState {
   const factory ProxiesActionsState({
     required PageLabel pageLabel,
     required ProxiesType type,
@@ -206,7 +224,7 @@ abstract class ProxiesActionsState with _$ProxiesActionsState {
 }
 
 @freezed
-abstract class ProxyState with _$ProxyState {
+class ProxyState with _$ProxyState {
   const factory ProxyState({
     required bool isStart,
     required bool systemProxy,
@@ -216,17 +234,17 @@ abstract class ProxyState with _$ProxyState {
 }
 
 @freezed
-abstract class ClashConfigState with _$ClashConfigState {
+class ClashConfigState with _$ClashConfigState {
   const factory ClashConfigState({
     required bool overrideDns,
     required ClashConfig clashConfig,
     required OverrideData overrideData,
-    required bool bypassPrivateRoute,
+    required RouteMode routeMode,
   }) = _ClashConfigState;
 }
 
 @freezed
-abstract class DashboardState with _$DashboardState {
+class DashboardState with _$DashboardState {
   const factory DashboardState({
     required List<DashboardWidget> dashboardWidgets,
     required double viewWidth,
@@ -234,13 +252,15 @@ abstract class DashboardState with _$DashboardState {
 }
 
 @freezed
-abstract class ProxyCardState with _$ProxyCardState {
-  const factory ProxyCardState({required String proxyName, String? testUrl}) =
-      _ProxyCardState;
+class ProxyCardState with _$ProxyCardState {
+  const factory ProxyCardState({
+    required String proxyName,
+    String? testUrl,
+  }) = _ProxyCardState;
 }
 
 @freezed
-abstract class VpnState with _$VpnState {
+class VpnState with _$VpnState {
   const factory VpnState({
     required TunStack stack,
     required VpnProps vpnProps,
@@ -248,7 +268,7 @@ abstract class VpnState with _$VpnState {
 }
 
 @freezed
-abstract class ProfileOverrideStateModel with _$ProfileOverrideStateModel {
+class ProfileOverrideStateModel with _$ProfileOverrideStateModel {
   const factory ProfileOverrideStateModel({
     ClashConfigSnippet? snippet,
     required Set<String> selectedRules,

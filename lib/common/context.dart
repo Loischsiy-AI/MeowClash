@@ -1,25 +1,30 @@
-import 'package:meow_clash/manager/message_manager.dart';
-import 'package:meow_clash/widgets/scaffold.dart';
+import 'package:flclashx/manager/message_manager.dart';
+import 'package:flclashx/widgets/scaffold.dart';
 import 'package:flutter/material.dart';
 
 extension BuildContextExtension on BuildContext {
-  CommonScaffoldState? get commonScaffoldState {
-    return findAncestorStateOfType<CommonScaffoldState>();
-  }
+  CommonScaffoldState? get commonScaffoldState => findAncestorStateOfType<CommonScaffoldState>();
 
-  Future<void>? showNotifier(String text,
-      {VoidCallback? onAction, String? actionLabel, bool showCountdown = false}) {
-    return findAncestorStateOfType<MessageManagerState>()
-        ?.message(text, onAction: onAction, actionLabel: actionLabel, showCountdown: showCountdown);
-  }
+  Future<void>? showNotifier(String text) => findAncestorStateOfType<MessageManagerState>()?.message(text);
 
-  void showSnackBar(String message, {SnackBarAction? action}) {
+  void showSnackBar(
+    String message, {
+    SnackBarAction? action,
+  }) {
     final width = viewWidth;
     EdgeInsets margin;
     if (width < 600) {
-      margin = const EdgeInsets.only(bottom: 16, right: 16, left: 16);
+      margin = const EdgeInsets.only(
+        bottom: 16,
+        right: 16,
+        left: 16,
+      );
     } else {
-      margin = EdgeInsets.only(bottom: 16, left: 16, right: width - 316);
+      margin = EdgeInsets.only(
+        bottom: 16,
+        left: 16,
+        right: width - 316,
+      );
     }
     ScaffoldMessenger.of(this).showSnackBar(
       SnackBar(
@@ -32,13 +37,9 @@ extension BuildContextExtension on BuildContext {
     );
   }
 
-  Size get appSize {
-    return MediaQuery.of(this).size;
-  }
+  Size get appSize => MediaQuery.of(this).size;
 
-  double get viewWidth {
-    return appSize.width;
-  }
+  double get viewWidth => appSize.width;
 
   ColorScheme get colorScheme => Theme.of(this).colorScheme;
 
@@ -47,7 +48,7 @@ extension BuildContextExtension on BuildContext {
   T? findLastStateOfType<T extends State>() {
     T? state;
 
-    visitor(Element element) {
+    void visitor(Element element) {
       if (!element.mounted) {
         return;
       }
@@ -61,23 +62,5 @@ extension BuildContextExtension on BuildContext {
 
     visitor(this as Element);
     return state;
-  }
-}
-
-class BackHandleInherited extends InheritedWidget {
-  final Function handleBack;
-
-  const BackHandleInherited({
-    super.key,
-    required this.handleBack,
-    required super.child,
-  });
-
-  static BackHandleInherited? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<BackHandleInherited>();
-
-  @override
-  bool updateShouldNotify(BackHandleInherited oldWidget) {
-    return handleBack != oldWidget.handleBack;
   }
 }

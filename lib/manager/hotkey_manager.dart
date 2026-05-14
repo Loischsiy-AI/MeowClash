@@ -1,17 +1,20 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/common.dart';
-import 'package:meow_clash/providers/config.dart';
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/common.dart';
+import 'package:flclashx/providers/config.dart';
+import 'package:flclashx/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 
 class HotKeyManager extends ConsumerStatefulWidget {
-  final Widget child;
 
-  const HotKeyManager({super.key, required this.child});
+  const HotKeyManager({
+    super.key,
+    required this.child,
+  });
+  final Widget child;
 
   @override
   ConsumerState<HotKeyManager> createState() => _HotKeyManagerState();
@@ -21,11 +24,15 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
   @override
   void initState() {
     super.initState();
-    ref.listenManual(hotKeyActionsProvider, (prev, next) {
-      if (!hotKeyActionListEquality.equals(prev, next)) {
-        _updateHotKeys(hotKeyActions: next);
-      }
-    }, fireImmediately: true);
+    ref.listenManual(
+      hotKeyActionsProvider,
+      (prev, next) {
+        if (!hotKeyActionListEquality.equals(prev, next)) {
+          _updateHotKeys(hotKeyActions: next);
+        }
+      },
+      fireImmediately: true,
+    );
   }
 
   Future<void> _handleHotKeyAction(HotAction action) async {
@@ -47,33 +54,32 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
     required List<HotKeyAction> hotKeyActions,
   }) async {
     await hotKeyManager.unregisterAll();
-    final hotkeyActionHandles = hotKeyActions
-        .where((hotKeyAction) {
-          return hotKeyAction.key != null && hotKeyAction.modifiers.isNotEmpty;
-        })
-        .map<Future>((hotKeyAction) async {
-          final modifiers = hotKeyAction.modifiers
-              .map((item) => item.toHotKeyModifier())
-              .toList();
-          final hotKey = HotKey(
-            key: PhysicalKeyboardKey(hotKeyAction.key!),
-            modifiers: modifiers,
-          );
-          return await hotKeyManager.register(
-            hotKey,
-            keyDownHandler: (_) {
-              _handleHotKeyAction(hotKeyAction.action);
-            },
-          );
-        });
+    final hotkeyActionHandles = hotKeyActions.where(
+      (hotKeyAction) => hotKeyAction.key != null && hotKeyAction.modifiers.isNotEmpty,
+    ).map<Future>(
+      (hotKeyAction) async {
+        final modifiers = hotKeyAction.modifiers
+            .map((item) => item.toHotKeyModifier())
+            .toList();
+        final hotKey = HotKey(
+          key: PhysicalKeyboardKey(hotKeyAction.key!),
+          modifiers: modifiers,
+        );
+        return hotKeyManager.register(
+          hotKey,
+          keyDownHandler: (_) {
+            _handleHotKeyAction(hotKeyAction.action);
+          },
+        );
+      },
+    );
     await Future.wait(hotkeyActionHandles);
   }
 
-  Shortcuts _buildShortcuts(Widget child) {
-    return Shortcuts(
+  Shortcuts _buildShortcuts(Widget child) => Shortcuts(
       shortcuts: {
         utils.controlSingleActivator(LogicalKeyboardKey.keyW):
-            CloseWindowIntent(),
+            const CloseWindowIntent(),
       },
       child: Actions(
         actions: {
@@ -87,10 +93,9 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
         child: child,
       ),
     );
-  }
 
   @override
-  Widget build(BuildContext context) {
-    return _buildShortcuts(widget.child);
-  }
+  Widget build(BuildContext context) => _buildShortcuts(
+      widget.child,
+    );
 }

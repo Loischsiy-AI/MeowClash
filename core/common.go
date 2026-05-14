@@ -5,6 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"runtime"
+	"sync"
+	"time"
+
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/inbound"
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
@@ -14,16 +19,14 @@ import (
 	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/constant/features"
 	cp "github.com/metacubex/mihomo/constant/provider"
-	"github.com/metacubex/mihomo/hub"
+	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/hub/route"
 	"github.com/metacubex/mihomo/listener"
+	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/log"
 	rp "github.com/metacubex/mihomo/rules/provider"
 	"github.com/metacubex/mihomo/tunnel"
-	"os"
-	"sync"
 )
 
 var (
@@ -32,6 +35,8 @@ var (
 	isRunning     = false
 	runLock       sync.Mutex
 	mBatch, _     = batch.New[bool](context.Background(), batch.WithConcurrencyNum[bool](50))
+	proxyDescriptions = map[string]string{}
+	pendingTunEnable  = false
 )
 
 type ExternalProviders []ExternalProvider
@@ -39,6 +44,74 @@ type ExternalProviders []ExternalProvider
 func (a ExternalProviders) Len() int           { return len(a) }
 func (a ExternalProviders) Less(i, j int) bool { return a[i].Name < a[j].Name }
 func (a ExternalProviders) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// proxiesWithProviders merges proxies from tunnel and all proxy providers
+func proxiesWithProviders() map[string]constant.Proxy {
+	allProxies := make(map[string]constant.Proxy)
+	for name, proxy := range tunnel.Proxies() {
+		allProxies[name] = proxy
+	}
+	for _, p := range tunnel.Providers() {
+		for _, proxy := range p.Proxies() {
+			name := proxy.Name()
+			allProxies[name] = proxy
+		}
+	}
+	return allProxies
+}
+
+// extractProxyDescriptionsFromRaw caches custom server descriptions by proxy name.
+func extractProxyDescriptionsFromRaw(rawConfig *config.RawConfig) {
+	descriptions := make(map[string]string, len(rawConfig.Proxy))
+	for _, proxy := range rawConfig.Proxy {
+		nameValue, ok := proxy["name"]
+		if !ok {
+			continue
+		}
+		name, ok := nameValue.(string)
+		if !ok || name == "" {
+			continue
+		}
+		description := ""
+		if value, ok := proxy["serverDescription"]; ok {
+			if text, ok := value.(string); ok {
+				description = text
+			}
+		}
+		if description == "" {
+			if value, ok := proxy["server-description"]; ok {
+				if text, ok := value.(string); ok {
+					description = text
+				}
+			}
+		}
+		if description == "" {
+			continue
+		}
+		descriptions[name] = description
+	}
+	proxyDescriptions = descriptions
+}
+
+// proxiesWithDescriptions injects serverDescription for each proxy in API response.
+func proxiesWithDescriptions() map[string]interface{} {
+	result := make(map[string]interface{})
+	for name, proxy := range proxiesWithProviders() {
+		data, err := json.Marshal(proxy)
+		if err != nil {
+			continue
+		}
+		item := make(map[string]interface{})
+		if err := json.Unmarshal(data, &item); err != nil {
+			continue
+		}
+		if desc, ok := proxyDescriptions[name]; ok && desc != "" {
+			item["serverDescription"] = desc
+		}
+		result[name] = item
+	}
+	return result
+}
 
 func getExternalProvidersRaw() map[string]cp.Provider {
 	eps := make(map[string]cp.Provider)
@@ -56,27 +129,35 @@ func getExternalProvidersRaw() map[string]cp.Provider {
 }
 
 func toExternalProvider(p cp.Provider) (*ExternalProvider, error) {
-	switch p.(type) {
+	switch pp := p.(type) {
 	case *provider.ProxySetProvider:
-		psp := p.(*provider.ProxySetProvider)
+		// Get SubscriptionInfo via JSON marshal (field is unexported in original mihomo)
+		var subInfo *provider.SubscriptionInfo
+		data, err := json.Marshal(pp)
+		if err == nil {
+			var apiData struct {
+				SubscriptionInfo *provider.SubscriptionInfo `json:"subscriptionInfo"`
+			}
+			_ = json.Unmarshal(data, &apiData)
+			subInfo = apiData.SubscriptionInfo
+		}
 		return &ExternalProvider{
-			Name:             psp.Name(),
-			Type:             psp.Type().String(),
-			VehicleType:      psp.VehicleType().String(),
-			Count:            psp.Count(),
-			UpdateAt:         psp.UpdatedAt(),
-			Path:             psp.Vehicle().Path(),
-			SubscriptionInfo: psp.GetSubscriptionInfo(),
+			Name:             pp.Name(),
+			Type:             pp.Type().String(),
+			VehicleType:      pp.VehicleType().String(),
+			Count:            pp.Count(),
+			UpdateAt:         pp.UpdatedAt(),
+			Path:             pp.Vehicle().Path(),
+			SubscriptionInfo: subInfo,
 		}, nil
 	case *rp.RuleSetProvider:
-		rsp := p.(*rp.RuleSetProvider)
 		return &ExternalProvider{
-			Name:        rsp.Name(),
-			Type:        rsp.Type().String(),
-			VehicleType: rsp.VehicleType().String(),
-			Count:       rsp.Count(),
-			UpdateAt:    rsp.UpdatedAt(),
-			Path:        rsp.Vehicle().Path(),
+			Name:        pp.Name(),
+			Type:        pp.Type().String(),
+			VehicleType: pp.VehicleType().String(),
+			Count:       pp.Count(),
+			UpdateAt:    pp.UpdatedAt(),
+			Path:        pp.Vehicle().Path(),
 		}, nil
 	default:
 		return nil, errors.New("not external provider")
@@ -84,18 +165,16 @@ func toExternalProvider(p cp.Provider) (*ExternalProvider, error) {
 }
 
 func sideUpdateExternalProvider(p cp.Provider, bytes []byte) error {
-	switch p.(type) {
+	switch pp := p.(type) {
 	case *provider.ProxySetProvider:
-		psp := p.(*provider.ProxySetProvider)
-		_, _, err := psp.SideUpdate(bytes)
-		if err == nil {
+		_, _, err := pp.SideUpdate(bytes)
+		if err != nil {
 			return err
 		}
 		return nil
-	case rp.RuleSetProvider:
-		rsp := p.(*rp.RuleSetProvider)
-		_, _, err := rsp.SideUpdate(bytes)
-		if err == nil {
+	case *rp.RuleSetProvider:
+		_, _, err := pp.SideUpdate(bytes)
+		if err != nil {
 			return err
 		}
 		return nil
@@ -104,6 +183,7 @@ func sideUpdateExternalProvider(p cp.Provider, bytes []byte) error {
 	}
 }
 
+// updateListeners recreates all listeners from current config
 func updateListeners() {
 	if !isRunning {
 		return
@@ -127,17 +207,30 @@ func updateListeners() {
 	listener.ReCreateShadowSocks(general.ShadowSocksConfig, tunnel.Tunnel)
 	listener.ReCreateVmess(general.VmessConfig, tunnel.Tunnel)
 	listener.ReCreateTuic(general.TuicServer, tunnel.Tunnel)
-	if !features.Android {
+	// Desktop builds may include the `cmfa` tag, so gate TUN only on Android.
+	if runtime.GOOS != "android" {
 		listener.ReCreateTun(general.Tun, tunnel.Tunnel)
 	}
 }
 
+// stopListeners stops all active listeners
 func stopListeners() {
-	listener.StopListener()
+	listener.ReCreateHTTP(0, tunnel.Tunnel)
+	listener.ReCreateSocks(0, tunnel.Tunnel)
+	listener.ReCreateRedir(0, tunnel.Tunnel)
+	listener.ReCreateTProxy(0, tunnel.Tunnel)
+	listener.ReCreateMixed(0, tunnel.Tunnel)
+	listener.ReCreateShadowSocks("", tunnel.Tunnel)
+	listener.ReCreateVmess("", tunnel.Tunnel)
+	listener.ReCreateTuic(LC.TuicServer{}, tunnel.Tunnel)
+	if runtime.GOOS != "android" {
+		listener.ReCreateTun(LC.Tun{}, tunnel.Tunnel)
+	}
+	listener.Cleanup()
 }
 
 func patchSelectGroup(mapping map[string]string) {
-	for name, proxy := range tunnel.ProxiesWithProviders() {
+	for name, proxy := range proxiesWithProviders() {
 		outbound, ok := proxy.(*adapter.Proxy)
 		if !ok {
 			continue
@@ -160,7 +253,7 @@ func patchSelectGroup(mapping map[string]string) {
 func defaultSetupParams() *SetupParams {
 	return &SetupParams{
 		Config:      config.DefaultRawConfig(),
-		TestURL:     "https://g.cn/generate_204",
+		TestURL:     "https://www.gstatic.com/generate_204",
 		SelectedMap: map[string]string{},
 	}
 }
@@ -218,6 +311,9 @@ func updateConfig(params *UpdateParams) {
 	}
 	if params.ExternalController != nil {
 		currentConfig.Controller.ExternalController = *params.ExternalController
+		if currentConfig.Controller.ExternalUI != "" {
+			route.SetUIPath(currentConfig.Controller.ExternalUI)
+		}
 		route.ReCreateServer(&route.Config{
 			Addr: currentConfig.Controller.ExternalController,
 		})
@@ -225,18 +321,12 @@ func updateConfig(params *UpdateParams) {
 
 	if params.Tun != nil {
 		general.Tun.Enable = params.Tun.Enable
+		pendingTunEnable = params.Tun.Enable
 		general.Tun.AutoRoute = *params.Tun.AutoRoute
 		general.Tun.Device = *params.Tun.Device
 		general.Tun.RouteAddress = *params.Tun.RouteAddress
-		if params.Tun.RouteExcludeAddress != nil {
-			general.Tun.RouteExcludeAddress = *params.Tun.RouteExcludeAddress
-		}
-		if params.Tun.StrictRoute != nil {
-			general.Tun.StrictRoute = *params.Tun.StrictRoute
-		}
 		general.Tun.DNSHijack = *params.Tun.DNSHijack
 		general.Tun.Stack = *params.Tun.Stack
-		general.Tun.DisableICMPForwarding = *params.Tun.DisableICMPForwarding
 	}
 
 	updateListeners()
@@ -245,41 +335,50 @@ func updateConfig(params *UpdateParams) {
 func setupConfig(params *SetupParams) error {
 	runLock.Lock()
 	defer runLock.Unlock()
-
-	if params.Config != nil && params.Config.ProxyGroup != nil {
-		for _, group := range params.Config.ProxyGroup {
-			if elm, ok := group["tolerance"]; ok {
-				switch v := elm.(type) {
-				case json.Number:
-					if i, err := v.Int64(); err == nil {
-						group["tolerance"] = int(i)
-					}
-				case float64:
-					group["tolerance"] = int(v)
-				case float32:
-					group["tolerance"] = int(v)
-				}
-			}
-		}
-	}
-
-	constant.DefaultTestURL = params.TestURL
-	if params.OverrideTestUrl && params.Config != nil {
-		if params.Config.ProxyGroup != nil {
-			for _, group := range params.Config.ProxyGroup {
-				group["url"] = params.TestURL
-			}
-		}
-	}
-
 	var err error
+
+	extractProxyDescriptionsFromRaw(params.Config)
+	resetHealthCheckForwarderState()
+
+	parseStart := time.Now()
 	currentConfig, err = config.ParseRawConfig(params.Config)
 	if err != nil {
+		log.Errorln("[Config] ParseRawConfig failed, falling back to default: %v", err)
 		currentConfig, _ = config.ParseRawConfig(config.DefaultRawConfig())
 	}
-	hub.ApplyConfig(currentConfig)
+	log.Infoln("[Setup] ParseRawConfig took %s", time.Since(parseStart))
+	pendingTunEnable = currentConfig.General.Tun.Enable
+	currentConfig.General.Tun.Enable = false
+	// Parse and cache config only. Full runtime apply happens on Start.
+	applyStart := time.Now()
+	executor.ApplyConfig(currentConfig, false)
+	log.Infoln("[Setup] executor.ApplyConfig took %s", time.Since(applyStart))
+	currentConfig.General.Tun.Enable = pendingTunEnable
+	// External-controller lifecycle is independent from TUN start/stop.
+	// Recreate API server during setup so it survives app restarts without
+	// requiring a manual UI toggle.
+	if currentConfig.Controller.ExternalUI != "" {
+		route.SetUIPath(currentConfig.Controller.ExternalUI)
+	}
+	route.ReCreateServer(&route.Config{
+		Addr: currentConfig.Controller.ExternalController,
+	})
 	patchSelectGroup(params.SelectedMap)
 	updateListeners()
+
+	// Kick off pings immediately so the UI shows latencies as soon as the
+	// profile loads, without waiting for the user to start TUN or for each
+	// provider's own healthcheck-interval to elapse. The forwarder is started
+	// here (not only on Start) and keeps running until shutdown.
+	runInitialProviderHealthChecks()
+	startHealthCheckForwarder()
+
+	// Notify Flutter that all providers are loaded
+	sendMessage(Message{
+		Type: LoadedMessage,
+		Data: "all",
+	})
+
 	return err
 }
 

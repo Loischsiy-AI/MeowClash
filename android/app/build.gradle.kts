@@ -1,4 +1,3 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 
 plugins {
@@ -18,26 +17,30 @@ val mStoreFile: File = file("keystore.jks")
 val mStorePassword: String? = localProperties.getProperty("storePassword")
 val mKeyAlias: String? = localProperties.getProperty("keyAlias")
 val mKeyPassword: String? = localProperties.getProperty("keyPassword")
-val isRelease =
-    mStoreFile.exists() && mStorePassword != null && mKeyAlias != null && mKeyPassword != null
-
+val isRelease = mStoreFile.exists()
+        && mStorePassword != null
+        && mKeyAlias != null
+        && mKeyPassword != null
 
 android {
-    namespace = "com.follow.clash"
-    compileSdk = libs.versions.compileSdk.get().toInt()
-    ndkVersion = libs.versions.ndkVersion.get()
-
-
+    namespace = "com.follow.clashx"
+    compileSdk = 36
+    ndkVersion = "28.0.13004108"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
-        applicationId = "com.follow.clash"
+        applicationId = "com.follow.clashx"
         minSdk = flutter.minSdkVersion
-        targetSdk = libs.versions.targetSdk.get().toInt()
+        targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -62,29 +65,25 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            applicationIdSuffix = ".dev"
+            applicationIdSuffix = ".debug"
         }
 
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            if (isRelease) {
-                signingConfig = signingConfigs.getByName("release")
+            isDebuggable = false
+
+            signingConfig = if (isRelease) {
+                signingConfigs.getByName("release")
             } else {
-                signingConfig = signingConfigs.getByName("debug")
-                applicationIdSuffix = ".dev"
+                signingConfigs.getByName("debug")
             }
 
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
             )
         }
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
@@ -92,12 +91,13 @@ flutter {
     source = "../.."
 }
 
-
 dependencies {
     implementation(project(":core"))
-    implementation(libs.core.splashscreen)
-    implementation(libs.gson)
-    implementation(libs.smali.dexlib2) {
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.android.tools.smali:smali-dexlib2:3.0.9") {
         exclude(group = "com.google.guava", module = "guava")
     }
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

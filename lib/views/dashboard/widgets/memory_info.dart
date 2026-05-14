@@ -1,11 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 
-import 'package:meow_clash/clash/clash.dart';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/models/common.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/widgets.dart';
+import 'package:flclashx/clash/clash.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/models/common.dart';
+import 'package:flclashx/state.dart';
+import 'package:flclashx/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+
+final _memoryInfoStateNotifier = ValueNotifier<TrafficValue>(
+  const TrafficValue(value: 0),
+);
 
 class MemoryInfo extends StatefulWidget {
   const MemoryInfo({super.key});
@@ -15,107 +20,45 @@ class MemoryInfo extends StatefulWidget {
 }
 
 class _MemoryInfoState extends State<MemoryInfo> {
-  late final VoidCallback _tickListener;
-  // Cache last memory value to avoid showing 0 on rebuild
-  static TrafficValue _lastMemoryValue = TrafficValue(value: 0);
-  TrafficValue _memoryValue = _lastMemoryValue;
-  Timer? _initTimer;
-  bool _isUpdating = false;
+  Timer? timer;
 
   @override
   void initState() {
     super.initState();
-    _tickListener = _updateMemory;
-    dashboardRefreshManager.tick2s.addListener(_tickListener);
-
-    // Get immediately on first open, otherwise delay 1000ms
-    if (_lastMemoryValue.value == 0) {
-      _retryUpdateMemory();
-    } else {
-      // Has cached value, delay
-      _initTimer = Timer(const Duration(milliseconds: 1000), _updateMemory);
-    }
-  }
-
-  Future<void> _retryUpdateMemory() async {
-    for (int i = 0; i < 5; i++) {
-      if (!mounted) return;
-      await _updateMemory();
-      if (_memoryValue.value > 0) break;
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
+    _updateMemory();
   }
 
   @override
   void dispose() {
-    _initTimer?.cancel();
-    dashboardRefreshManager.tick2s.removeListener(_tickListener);
+    timer?.cancel();
     super.dispose();
   }
 
   Future<void> _updateMemory() async {
-    if (!mounted) return;
-    if (_isUpdating) return;
-    _isUpdating = true;
-
-    try {
-      final memoryValue = await clashCore.getMemory();
-      // Update only if valid (non-zero)
-      if (memoryValue > 0) {
-        final adjustedValue = memoryValue;
-
-        if (mounted) {
-          setState(() {
-            _memoryValue = TrafficValue(value: adjustedValue);
-            _lastMemoryValue = _memoryValue; // Cache latest valid value
-          });
-        }
-      }
-      // If 0, keep last valid value
-    } catch (e) {
-      // Ignore error, keep current value
-    } finally {
-      _isUpdating = false;
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final rss = ProcessInfo.currentRss;
+      _memoryInfoStateNotifier.value = TrafficValue(
+        value: clashLib != null ? rss : await clashCore.getMemory() + rss,
+      );
+      timer = Timer(const Duration(seconds: 2), () async {
+        _updateMemory();
+      });
+    });
   }
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
+  Widget build(BuildContext context) => SizedBox(
       height: getWidgetHeight(1),
       child: CommonCard(
-        info: Info(iconData: Icons.memory, label: appLocalizations.memoryInfo),
-        onLongPress: () async {
-          // Show confirmation dialog
-          final result = await globalState.showCommonDialog<bool>(
-            child: CommonDialog(
-              title: appLocalizations.forceGCTitle,
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context, rootNavigator: true).pop(false);
-                  },
-                  child: Text(appLocalizations.cancel),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context, rootNavigator: true).pop(true);
-                  },
-                  child: Text(appLocalizations.confirm),
-                ),
-              ],
-              child: Text(appLocalizations.forceGCDesc),
-            ),
-          );
-
-          // Execute force GC after user confirms
-          if (result == true) {
-            await clashCore.requestGc();
-            globalState.showNotifier(appLocalizations.success);
-          }
-        },
+        info: Info(
+          iconData: Icons.memory,
+          label: appLocalizations.memoryInfo,
+        ),
+        onPressed: clashCore.requestGc,
         child: Container(
-          padding: baseInfoEdgeInsets.copyWith(top: 0),
+          padding: baseInfoEdgeInsets.copyWith(
+            top: 0,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.end,
@@ -123,29 +66,100 @@ class _MemoryInfoState extends State<MemoryInfo> {
             children: [
               SizedBox(
                 height: globalState.measure.bodyMediumHeight + 2,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    Text(
-                      _memoryValue.showValue,
-                      style: context.textTheme.bodyMedium?.toLight.adjustSize(
-                        1,
-                      ),
+                child: ValueListenableBuilder(
+                  valueListenable: _memoryInfoStateNotifier,
+                  builder: (_, trafficValue, __) => Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        Text(
+                          trafficValue.showValue,
+                          style: context.textTheme.bodyMedium?.toLight
+                              .adjustSize(1),
+                        ),
+                        const SizedBox(
+                          width: 8,
+                        ),
+                        Text(
+                          trafficValue.showUnit,
+                          style: context.textTheme.bodyMedium?.toLight
+                              .adjustSize(1),
+                        )
+                      ],
                     ),
-                    SizedBox(width: 8),
-                    Text(
-                      _memoryValue.showUnit,
-                      style: context.textTheme.bodyMedium?.toLight.adjustSize(
-                        1,
-                      ),
-                    ),
-                  ],
                 ),
-              ),
+              )
             ],
           ),
         ),
       ),
     );
-  }
 }
+
+// class AnimatedCounter extends StatefulWidget {
+//   final double value;
+//   final TextStyle? style;
+//
+//   const AnimatedCounter({
+//     super.key,
+//     required this.value,
+//     this.style,
+//   });
+//
+//   @override
+//   State<AnimatedCounter> createState() => _AnimatedCounterState();
+// }
+//
+// class _AnimatedCounterState extends State<AnimatedCounter> {
+//   late double _previousValue;
+//   late double _currentValue;
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//     _previousValue = widget.value;
+//     _currentValue = widget.value;
+//   }
+//
+//   @override
+//   void didUpdateWidget(AnimatedCounter oldWidget) {
+//     super.didUpdateWidget(oldWidget);
+//     if (oldWidget.value != widget.value) {
+//       // if (_previousValue == _currentValue) {
+//       //   _previousValue = widget.value;
+//       //   _currentValue = widget.value;
+//       //   return;
+//       // }
+//       _currentValue = widget.value;
+//     }
+//   }
+//
+//   @override
+//   void dispose() {
+//     super.dispose();
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Text(
+//       _currentValue.fixed(decimals: 1),
+//       style: widget.style,
+//     );
+//     return TweenAnimationBuilder(
+//       tween: Tween(
+//         begin: _previousValue,
+//         end: _currentValue,
+//       ),
+//       onEnd: () {
+//         _previousValue = _currentValue;
+//       },
+//       duration: Duration(seconds: 6),
+//       curve: Curves.easeOut,
+//       builder: (_, value, ___) {
+//         return Text(
+//           value.fixed(decimals: 1),
+//           style: widget.style,
+//         );
+//       },
+//     );
+//   }
+// }

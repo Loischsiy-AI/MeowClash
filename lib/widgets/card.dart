@@ -1,21 +1,21 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/widgets/fade_box.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/widgets/fade_box.dart';
 import 'package:flutter/material.dart';
 
 import 'text.dart';
 
 class Info {
+
+  const Info({
+    required this.label,
+    this.iconData,
+  });
   final String label;
   final IconData? iconData;
-
-  const Info({required this.label, this.iconData});
 }
 
 class InfoHeader extends StatelessWidget {
-  final Info info;
-  final List<Widget> actions;
-  final EdgeInsetsGeometry? padding;
 
   const InfoHeader({
     super.key,
@@ -23,10 +23,12 @@ class InfoHeader extends StatelessWidget {
     this.padding,
     List<Widget>? actions,
   }) : actions = actions ?? const [];
+  final Info info;
+  final List<Widget> actions;
+  final EdgeInsetsGeometry? padding;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
+  Widget build(BuildContext context) => Padding(
       padding: padding ?? baseInfoEdgeInsets,
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -42,34 +44,39 @@ class InfoHeader extends StatelessWidget {
                     info.iconData,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(
+                    width: 8,
+                  ),
                 ],
                 Flexible(
                   flex: 1,
                   child: TooltipText(
-                    text: EmojiText(
+                    text: Text(
                       info.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: context.colorScheme.onSurfaceVariant,
-                      ),
+                            color: context.colorScheme.onSurfaceVariant,
+                          ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(
+            width: 8,
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [...actions],
+            children: [
+              ...actions,
+            ],
           ),
         ],
       ),
     );
-  }
 }
 
 class CommonCard extends StatelessWidget {
@@ -78,7 +85,6 @@ class CommonCard extends StatelessWidget {
     bool? isSelected,
     this.type = CommonCardType.plain,
     this.onPressed,
-    this.onLongPress,
     this.selectWidget,
     this.radius = 12,
     required this.child,
@@ -90,7 +96,6 @@ class CommonCard extends StatelessWidget {
   final bool enterAnimated;
   final bool isSelected;
   final void Function()? onPressed;
-  final void Function()? onLongPress;
   final Widget? selectWidget;
   final Widget child;
   final EdgeInsets? padding;
@@ -112,7 +117,9 @@ class CommonCard extends StatelessWidget {
     if (states.contains(WidgetState.hovered) ||
         states.contains(WidgetState.focused) ||
         states.contains(WidgetState.pressed)) {
-      return BorderSide(color: hoverColor);
+      return BorderSide(
+        color: hoverColor,
+      );
     }
     return BorderSide(
       color: isSelected
@@ -127,12 +134,12 @@ class CommonCard extends StatelessWidget {
       if (isSelected) {
         return colorScheme.secondaryContainer.opacity80;
       }
-      return colorScheme.surfaceContainer;
+      return colorScheme.surfaceContainer.withValues(alpha: 0.85);
     }
     if (isSelected) {
-      return colorScheme.secondaryContainer;
+      return colorScheme.secondaryContainer.withValues(alpha: 0.85);
     }
-    return colorScheme.surfaceContainerLow;
+    return colorScheme.surfaceContainerLow.withValues(alpha: 0.85);
   }
 
   @override
@@ -144,28 +151,41 @@ class CommonCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           InfoHeader(
-            padding: baseInfoEdgeInsets.copyWith(bottom: 0),
+            padding: baseInfoEdgeInsets.copyWith(
+              bottom: 0,
+            ),
             info: info!,
           ),
-          Flexible(flex: 1, child: child),
+          Flexible(
+            flex: 1,
+            child: child,
+          ),
         ],
       );
     }
 
     if (selectWidget != null && isSelected) {
-      final List<Widget> children = [];
+      final children = <Widget>[];
       children.add(childWidget);
-      children.add(Positioned.fill(child: selectWidget!));
-      childWidget = Stack(children: children);
+      children.add(
+        Positioned.fill(
+          child: selectWidget!,
+        ),
+      );
+      childWidget = Stack(
+        children: children,
+      );
     }
 
     final card = OutlinedButton(
-      onLongPress: onLongPress,
+      onLongPress: null,
       clipBehavior: Clip.antiAlias,
       style: ButtonStyle(
         padding: const WidgetStatePropertyAll(EdgeInsets.zero),
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+          RoundedSuperellipseBorder(
+            borderRadius: BorderRadius.circular(radius),
+          ),
         ),
         iconColor: WidgetStatePropertyAll(context.colorScheme.primary),
         iconSize: WidgetStateProperty.all(20),
@@ -181,7 +201,9 @@ class CommonCard extends StatelessWidget {
     );
 
     return switch (enterAnimated) {
-      true => FadeScaleEnterBox(child: card),
+      true => FadeScaleEnterBox(
+          child: card,
+        ),
       false => card,
     };
   }
@@ -191,37 +213,46 @@ class SelectIcon extends StatelessWidget {
   const SelectIcon({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
+  Widget build(BuildContext context) => Material(
       color: Theme.of(context).colorScheme.inversePrimary,
       shape: const CircleBorder(),
       child: Container(
         padding: const EdgeInsets.all(4),
-        child: const Icon(Icons.check, size: 16),
+        child: const Icon(
+          Icons.check,
+          size: 16,
+        ),
       ),
     );
-  }
 }
 
 class SettingsBlock extends StatelessWidget {
+
+  const SettingsBlock({
+    super.key,
+    required this.title,
+    required this.settings,
+  });
   final String title;
   final List<Widget> settings;
 
-  const SettingsBlock({super.key, required this.title, required this.settings});
-
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.all(8),
+  Widget build(BuildContext context) => Padding(
+      padding: const EdgeInsets.all(8),
       child: Column(
         children: [
-          InfoHeader(info: Info(label: title)),
+          InfoHeader(
+            info: Info(
+              label: title,
+            ),
+          ),
           Card(
-            color: context.colorScheme.surfaceContainer,
-            child: Column(children: settings),
+            color: context.colorScheme.surfaceContainer.withValues(alpha: 0.85),
+            child: Column(
+              children: settings,
+            ),
           ),
         ],
       ),
     );
-  }
 }

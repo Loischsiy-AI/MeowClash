@@ -1,42 +1,15 @@
 import 'dart:math';
 
-import 'package:meow_clash/state.dart';
-
 import 'package:defer_pointer/defer_pointer.dart';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/providers/providers.dart';
-import 'package:meow_clash/widgets/widgets.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/providers/providers.dart';
+import 'package:flclashx/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-final customDashboardTitleProvider =
-    StateNotifierProvider<CustomDashboardTitleNotifier, String?>((ref) {
-      return CustomDashboardTitleNotifier();
-    });
+import 'widgets/start_button.dart';
 
-class CustomDashboardTitleNotifier extends StateNotifier<String?> {
-  CustomDashboardTitleNotifier() : super(null) {
-    _init();
-  }
-
-  Future<void> _init() async {
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-    state = prefs?.getString(customDashboardTitleKey);
-  }
-
-  Future<void> updateTitle(String? title) async {
-    state = title;
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-    if (title == null) {
-      prefs?.remove(customDashboardTitleKey);
-    } else {
-      prefs?.setString(customDashboardTitleKey, title);
-    }
-  }
-}
-
-typedef _IsEditWidgetBuilder = Widget Function(bool isEdit);
 
 class DashboardView extends ConsumerStatefulWidget {
   const DashboardView({super.key});
@@ -45,77 +18,84 @@ class DashboardView extends ConsumerStatefulWidget {
   ConsumerState<DashboardView> createState() => _DashboardViewState();
 }
 
-class _DashboardViewState extends ConsumerState<DashboardView> {
+class _DashboardViewState extends ConsumerState<DashboardView> with PageMixin {
   final key = GlobalKey<SuperGridState>();
   final _isEditNotifier = ValueNotifier<bool>(false);
   final _addedWidgetsNotifier = ValueNotifier<List<GridItem>>([]);
 
   @override
-  dispose() {
+  void initState() {
+    ref.listenManual(
+      isCurrentPageProvider(PageLabel.dashboard),
+      (prev, next) {
+        if (prev != next && next == true) {
+          initPageState();
+        }
+      },
+      fireImmediately: true,
+    );
+    return super.initState();
+  }
+
+  @override
+  void dispose() {
     _isEditNotifier.dispose();
-    _addedWidgetsNotifier.dispose();
     super.dispose();
   }
 
-  Widget _buildIsEdit(_IsEditWidgetBuilder builder) {
-    return ValueListenableBuilder(
-      valueListenable: _isEditNotifier,
-      builder: (_, isEdit, _) {
-        return builder(isEdit);
-      },
-    );
-  }
+  @override
+  Widget? get floatingActionButton => null; // Moved to bottom of body
 
-  List<Widget> _buildActions() {
-    return [
-      _buildIsEdit((isEdit) {
-        return isEdit
-            ? ValueListenableBuilder(
-                valueListenable: _addedWidgetsNotifier,
-                builder: (_, addedChildren, child) {
-                  if (addedChildren.isEmpty) {
-                    return Container();
-                  }
-                  return child!;
-                },
-                child: IconButton(
-                  onPressed: () {
-                    _showAddWidgetsModal();
+  Widget _buildIsEdit(Widget Function(bool) builder) => ValueListenableBuilder(
+      valueListenable: _isEditNotifier,
+      builder: (_, isEdit, ___) => builder(isEdit),
+    );
+
+  @override
+  List<Widget> get actions => [
+        _buildIsEdit((isEdit) => isEdit
+              ? ValueListenableBuilder(
+                  valueListenable: _addedWidgetsNotifier,
+                  builder: (_, addedChildren, child) {
+                    if (addedChildren.isEmpty) {
+                      return Container();
+                    }
+                    return child!;
                   },
-                  icon: Icon(Icons.add_circle),
-                ),
-              )
-            : SizedBox();
-      }),
-      Material(
-        type: MaterialType.transparency,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.hardEdge,
-        child: InkWell(
-          onTap: _handleUpdateIsEdit,
-          onLongPress: () {
-            if (!_isEditNotifier.value) {
-              _showEditTitleDialog();
+                  child: IconButton(
+                    onPressed: _showAddWidgetsModal,
+                    icon: const Icon(
+                      Icons.add_circle,
+                    ),
+                  ),
+                )
+              : const SizedBox()),
+        Consumer(
+          builder: (context, ref, child) {
+            final denyEditing = ref.watch(currentProfileProvider
+                .select((profile) => profile?.providerHeaders['flclashx-denywidgets']));
+
+            if (denyEditing == 'true') {
+              return const SizedBox.shrink();
             }
+
+            return IconButton(
+              icon: _buildIsEdit((isEdit) => isEdit
+                    ? const Icon(Icons.save)
+                    : const Icon(
+                        Icons.edit,
+                      )),
+              onPressed: _handleUpdateIsEdit,
+            );
           },
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: _buildIsEdit((isEdit) {
-              return isEdit ? const Icon(Icons.save) : const Icon(Icons.edit);
-            }),
-          ),
         ),
-      ),
-    ];
-  }
+      ];
 
   void _showAddWidgetsModal() {
     showSheet(
-      builder: (_, type) {
-        return ValueListenableBuilder(
+      builder: (_, type) => ValueListenableBuilder(
           valueListenable: _addedWidgetsNotifier,
-          builder: (_, value, _) {
-            return AdaptiveSheetScaffold(
+          builder: (_, value, __) => AdaptiveSheetScaffold(
               type: type,
               body: _AddDashboardWidgetModal(
                 items: value,
@@ -124,24 +104,10 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                 },
               ),
               title: appLocalizations.add,
-            );
-          },
-        );
-      },
+            ),
+        ),
       context: context,
     );
-  }
-
-  void _showEditTitleDialog() async {
-    final currentTitle = ref.read(customDashboardTitleProvider) ?? '';
-    final title = await globalState.showCommonDialog<String>(
-      child: _DashboardTitleDialog(initialValue: currentTitle),
-    );
-    if (title != null) {
-      ref
-          .read(customDashboardTitleProvider.notifier)
-          .updateTitle(title.isEmpty ? null : title);
-    }
   }
 
   void _handleUpdateIsEdit() {
@@ -158,105 +124,143 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final dashboardWidgets = children
-          .map((item) => DashboardWidget.getDashboardWidget(item))
+          .map(
+            DashboardWidget.getDashboardWidget,
+          )
           .toList();
-      ref
-          .read(appSettingProvider.notifier)
-          .updateState(
+      ref.read(appSettingProvider.notifier).updateState(
             (state) => state.copyWith(dashboardWidgets: dashboardWidgets),
           );
     });
   }
 
+  bool _isAllowedWidget(
+    DashboardWidget item, {
+    required bool globalModeEnabled,
+    required bool hasAnnounceData,
+    required bool hasServiceInfoData,
+    required bool hasServerInfoData,
+  }) {
+    if (!item.platforms.contains(SupportPlatform.currentPlatform)) {
+      return false;
+    }
+    
+    if (!globalModeEnabled) {
+      if (item == DashboardWidget.outboundMode || 
+          item == DashboardWidget.outboundModeV2) {
+        return false;
+      }
+    }
+    
+    if (item == DashboardWidget.announce && !hasAnnounceData) {
+      return false;
+    }
+    if (item == DashboardWidget.serviceInfo && !hasServiceInfoData) {
+      return false;
+    }
+    if (item == DashboardWidget.changeServerButton && !hasServerInfoData) {
+      return false;
+    }
+    
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final dashboardState = ref.watch(dashboardStateProvider);
+    final globalModeEnabled = ref.watch(globalModeEnabledProvider);
+    final hasAnnounce = ref.watch(hasAnnounceDataProvider);
+    final hasServiceInfo = ref.watch(hasServiceInfoDataProvider);
+    final hasServerInfo = ref.watch(hasServerInfoDataProvider);
     final columns = max(4 * ((dashboardState.viewWidth / 320).ceil()), 8);
     final spacing = 16.ap;
+    
+    bool isAllowed(DashboardWidget item) => _isAllowedWidget(
+      item,
+      globalModeEnabled: globalModeEnabled,
+      hasAnnounceData: hasAnnounce,
+      hasServiceInfoData: hasServiceInfo,
+      hasServerInfoData: hasServerInfo,
+    );
+    
     final children = [
       ...dashboardState.dashboardWidgets
-          .where(
-            (item) => item.platforms.contains(SupportPlatform.currentPlatform),
-          )
-          .map((item) => item.widget),
+          .where(isAllowed)
+          .map(
+            (item) => item.widget,
+          ),
     ];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _addedWidgetsNotifier.value = DashboardWidget.values
           .where(
-            (item) =>
-                !children.contains(item.widget) &&
-                item.platforms.contains(SupportPlatform.currentPlatform),
+            (item) => !children.contains(item.widget) && isAllowed(item),
           )
           .map((item) => item.widget)
           .toList();
     });
-    return CommonScaffold(
-      title:
-          ref.watch(customDashboardTitleProvider) ?? appLocalizations.dashboard,
-      actions: _buildActions(),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16).copyWith(bottom: 16),
-          child: _buildIsEdit((isEdit) {
-            if (isEdit) {
-              return SystemBackBlock(
-                child: CommonPopScope(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SuperGrid(
-                        key: key,
+    return Column(
+      children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16).copyWith(
+                bottom: 16,
+              ),
+              child: _buildIsEdit((isEdit) => isEdit
+                    ? SystemBackBlock(
+                        child: CommonPopScope(
+                          child: SuperGrid(
+                            key: key,
+                            crossAxisCount: columns,
+                            crossAxisSpacing: spacing,
+                            mainAxisSpacing: spacing,
+                            onUpdate: _handleSave,
+                            children: [
+                              ...dashboardState.dashboardWidgets
+                                  .where(isAllowed)
+                                  .map(
+                                    (item) => item.widget,
+                                  ),
+                            ],
+                          ),
+                          onPop: () {
+                            _handleUpdateIsEdit();
+                            return false;
+                          },
+                        ),
+                      )
+                    : Grid(
                         crossAxisCount: columns,
                         crossAxisSpacing: spacing,
                         mainAxisSpacing: spacing,
-                        children: [
-                          ...dashboardState.dashboardWidgets
-                              .where(
-                                (item) => item.platforms.contains(
-                                  SupportPlatform.currentPlatform,
-                                ),
-                              )
-                              .map((item) => item.widget),
-                        ],
-                        onUpdate: () {
-                          _handleSave();
-                        },
-                      ),
-                    ],
-                  ),
-                  onPop: () {
-                    _handleUpdateIsEdit();
-                    return false;
-                  },
-                ),
-              );
-            } else {
-              return Grid(
-                crossAxisCount: columns,
-                crossAxisSpacing: spacing,
-                mainAxisSpacing: spacing,
-                children: [...children],
-              );
-            }
-          }),
+                        children: children,
+                      )),
+            ),
+          ),
         ),
-      ),
+        // Start/Stop button at the bottom
+        const StartButton(),
+      ],
     );
   }
 }
 
 class _AddDashboardWidgetModal extends StatelessWidget {
+
+  const _AddDashboardWidgetModal({
+    required this.items,
+    required this.onAdd,
+  });
   final List<GridItem> items;
   final Function(GridItem item) onAdd;
 
-  const _AddDashboardWidgetModal({required this.items, required this.onAdd});
-
   @override
-  Widget build(BuildContext context) {
-    return DeferredPointerHandler(
+  Widget build(BuildContext context) => DeferredPointerHandler(
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(
+          16,
+        ),
         child: Grid(
           crossAxisCount: 8,
           crossAxisSpacing: 16,
@@ -264,28 +268,28 @@ class _AddDashboardWidgetModal extends StatelessWidget {
           children: items
               .map(
                 (item) => item.wrap(
-                  builder: (child) {
-                    return _AddedContainer(
+                  builder: (child) => _AddedContainer(
                       onAdd: () {
                         onAdd(item);
                       },
                       child: child,
-                    );
-                  },
+                    ),
                 ),
               )
               .toList(),
         ),
       ),
     );
-  }
 }
 
 class _AddedContainer extends StatefulWidget {
+
+  const _AddedContainer({
+    required this.child,
+    required this.onAdd,
+  });
   final Widget child;
   final VoidCallback onAdd;
-
-  const _AddedContainer({required this.child, required this.onAdd});
 
   @override
   State<_AddedContainer> createState() => _AddedContainerState();
@@ -313,11 +317,12 @@ class _AddedContainerState extends State<_AddedContainer> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Stack(
+  Widget build(BuildContext context) => Stack(
       clipBehavior: Clip.none,
       children: [
-        ActivateBox(child: widget.child),
+        ActivateBox(
+          child: widget.child,
+        ),
         Positioned(
           top: -8,
           right: -8,
@@ -327,89 +332,15 @@ class _AddedContainerState extends State<_AddedContainer> {
               height: 24,
               child: IconButton.filled(
                 iconSize: 20,
-                padding: EdgeInsets.all(2),
+                padding: const EdgeInsets.all(2),
                 onPressed: _handleAdd,
-                icon: Icon(Icons.add),
+                icon: const Icon(
+                  Icons.add,
+                ),
               ),
             ),
           ),
-        ),
+        )
       ],
     );
-  }
-}
-
-class _DashboardTitleDialog extends StatefulWidget {
-  final String initialValue;
-
-  const _DashboardTitleDialog({required this.initialValue});
-
-  @override
-  State<_DashboardTitleDialog> createState() => _DashboardTitleDialogState();
-}
-
-class _DashboardTitleDialogState extends State<_DashboardTitleDialog> {
-  late final TextEditingController _controller;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _validate(String value) {
-    int len = 0;
-    for (int i = 0; i < value.length; i++) {
-      len += value.codeUnitAt(i) > 127 ? 2 : 1;
-    }
-    setState(() {
-      if (len > 12) {
-        _errorText = 'Too long (Max 6 Chinese or 12 English)';
-      } else {
-        _errorText = null;
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return CommonDialog(
-      title: '^_^',
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-          child: Text(appLocalizations.cancel),
-        ),
-        TextButton(
-          onPressed: _errorText == null
-              ? () {
-                  Navigator.of(context).pop(_controller.text);
-                }
-              : null,
-          child: Text(appLocalizations.confirm),
-        ),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8.0),
-        child: TextField(
-          controller: _controller,
-          decoration: InputDecoration(
-            hintText: 'Have fun with MeowClash',
-            errorText: _errorText,
-            border: const OutlineInputBorder(),
-          ),
-          onChanged: _validate,
-        ),
-      ),
-    );
-  }
 }

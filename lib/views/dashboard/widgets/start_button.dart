@@ -1,10 +1,7 @@
-import 'dart:async';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/providers/providers.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/widgets.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/providers/providers.dart';
+import 'package:flclashx/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,194 +12,204 @@ class StartButton extends ConsumerStatefulWidget {
   ConsumerState<StartButton> createState() => _StartButtonState();
 }
 
-class _StartButtonState extends ConsumerState<StartButton> {
-  static const Duration _disableDuration = Duration(milliseconds: 1000);
-  Timer? _disableTimer;
-  bool _isDisabled = false;
+class _StartButtonState extends ConsumerState<StartButton>
+    with TickerProviderStateMixin {
+  late AnimationController _controller;
+  late AnimationController _pressController;
+  late Animation<double> _animation;
+  late Animation<double> _scaleAnimation;
+  bool isStart = false;
 
-  void _handleStart() {
-    if (_isDisabled) return;
-    _disableTimer?.cancel();
-    setState(() {
-      _isDisabled = true;
-    });
-    _disableTimer = Timer(_disableDuration, () {
-      if (!mounted) return;
-      setState(() {
-        _isDisabled = false;
-      });
-    });
-    final isStart = ref.read(runTimeProvider) != null;
-    final newState = !isStart;
+  @override
+  void initState() {
+    super.initState();
+    isStart = globalState.appState.runTime != null;
+    _controller = AnimationController(
+      vsync: this,
+      value: isStart ? 1 : 0,
+      duration: const Duration(milliseconds: 300),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
 
-    debouncer.call(FunctionTag.updateStatus, () {
-      globalState.appController.updateStatus(newState);
-    }, duration: commonDuration);
-  }
-
-  Future<void> _handleLongPress() async {
-    final isStart = ref.read(runTimeProvider) != null;
-    if (!isStart) return;
-
-    final result = await globalState.showCommonDialog<bool>(
-      child: CommonDialog(
-        title: appLocalizations.restartCoreTitle,
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context, rootNavigator: true).pop(false);
-            },
-            child: Text(appLocalizations.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context, rootNavigator: true).pop(true);
-            },
-            child: Text(appLocalizations.confirm),
-          ),
-        ],
-        child: Text(appLocalizations.restartCoreDesc),
+    _pressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(
+        parent: _pressController,
+        curve: Curves.easeOut,
       ),
     );
 
-    if (result == true) {
-      await globalState.appController.restartCore();
-      globalState.showNotifier(appLocalizations.success);
-    }
+    ref.listenManual(
+      runTimeProvider.select((state) => state != null),
+      (prev, next) {
+        if (next != isStart) {
+          isStart = next;
+          updateController();
+        }
+      },
+      fireImmediately: true,
+    );
   }
 
   @override
   void dispose() {
-    _disableTimer?.cancel();
+    _controller.dispose();
+    _pressController.dispose();
     super.dispose();
+  }
+
+  void handleSwitchStart() {
+    isStart = !isStart;
+    updateController();
+    debouncer.call(
+      FunctionTag.updateStatus,
+      () {
+        globalState.appController.updateStatus(isStart);
+      },
+      duration: commonDuration,
+    );
+  }
+
+  void updateController() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isStart) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    });
+  }
+
+  void _onTapDown(TapDownDetails details) {
+    _pressController.forward();
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    _pressController.reverse();
+  }
+
+  void _onTapCancel() {
+    _pressController.reverse();
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(startButtonSelectorStateProvider);
-    final canPress = state.isInit && state.hasProfile && !_isDisabled;
+    if (!state.isInit || !state.hasProfile) {
+      return Container();
+    }
 
-    return ValueListenableBuilder<int>(
-      valueListenable: dashboardRefreshManager.tick1s,
-      builder: (_, _, _) {
-        final runTime = ref.read(runTimeProvider);
-        final isStart = runTime != null;
-        return SizedBox(
-          height: getWidgetHeight(1),
-          child: CommonCard(
-            info: Info(
-              label: isStart
-                  ? appLocalizations.runTime
-                  : appLocalizations.powerSwitch,
-              iconData: Icons.power_settings_new,
-            ),
-            onPressed: canPress ? _handleStart : null,
-            onLongPress: canPress ? _handleLongPress : null,
-            child: Container(
-              padding: baseInfoEdgeInsets.copyWith(top: 0),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SizedBox(
-                    height: globalState.measure.bodyMediumHeight + 2,
-                    child: FadeThroughBox(
-                      child: _buildContent(context, ref, state, isStart, runTime),
+    final colorScheme = Theme.of(context).colorScheme;
+    final activeColor = Colors.green.shade600.withValues(alpha: 0.9);
+    final inactiveColor = colorScheme.secondaryContainer.withValues(alpha: 0.85);
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_controller, _pressController]),
+        builder: (_, child) => Transform.scale(
+            scale: _scaleAnimation.value,
+            child: SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: GestureDetector(
+                onTapDown: _onTapDown,
+                onTapUp: _onTapUp,
+                onTapCancel: _onTapCancel,
+                child: FilledButton(
+                  onPressed: handleSwitchStart,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isStart ? activeColor : inactiveColor,
+                    foregroundColor: isStart
+                        ? Colors.white
+                        : colorScheme.onSecondaryContainer,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: isStart ? 4 : 0,
+                  ),
+                  child: Center(
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedIcon(
+                            icon: AnimatedIcons.play_pause,
+                            progress: _animation,
+                            size: 36,
+                            color: isStart
+                                ? Colors.white
+                                : colorScheme.onSecondaryContainer,
+                          ),
+                          if (child != null) ...[
+                            const SizedBox(width: 12),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (childWidget, animation) {
+                                final offsetAnimation = Tween<Offset>(
+                                  begin: const Offset(0, 0.3),
+                                  end: Offset.zero,
+                                ).animate(CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOutCubic,
+                                ));
+
+                                return SlideTransition(
+                                  position: offsetAnimation,
+                                  child: FadeTransition(
+                                    opacity: animation,
+                                    child: childWidget,
+                                  ),
+                                );
+                              },
+                              layoutBuilder: (currentChild, previousChildren) => Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    ...previousChildren,
+                                    if (currentChild != null) currentChild,
+                                  ],
+                                ),
+                              child: child,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildContent(
-    BuildContext context,
-    WidgetRef ref,
-    StartButtonSelectorState state,
-    bool isStart,
-    int? runTime,
-  ) {
-    if (!state.isInit) {
-      return Container(
-        padding: EdgeInsets.all(2),
-        child: AspectRatio(
-          aspectRatio: 1,
-          child: CircularProgressIndicator(strokeWidth: 2),
+        child: Consumer(
+          builder: (_, ref, __) {
+            final runTime = ref.watch(runTimeProvider);
+            if (runTime != null) {
+              final text = utils.getTimeText(runTime);
+              return Text(
+                text,
+                key: ValueKey('time_$text'),
+                style: context.textTheme.titleMedium?.toSoftBold.copyWith(
+                  color: Colors.white,
+                ),
+              );
+            } else {
+              return const SizedBox.shrink(
+                key: ValueKey('empty'),
+              );
+            }
+          },
         ),
-      );
-    }
-
-    if (!state.hasProfile) {
-      return Text(
-        appLocalizations.checkOrAddProfile,
-        style: context.textTheme.bodyMedium?.toLight.adjustSize(1),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      );
-    }
-
-    if (!isStart) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Icon(Icons.play_arrow, size: 16, color: context.colorScheme.primary),
-          SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              appLocalizations.serviceReady,
-              style: context.textTheme.bodyMedium?.toLight.adjustSize(1),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Started state: show pause icon + run time
-    final timeText = _formatRunTime(runTime);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        Icon(Icons.pause, size: 16, color: context.colorScheme.primary),
-        SizedBox(width: 4),
-        Text('  ', style: context.textTheme.bodyMedium?.toLight.adjustSize(1)),
-        Expanded(
-          child: Text(
-            timeText,
-            style: context.textTheme.bodyMedium?.toLight.adjustSize(1),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
+      ),
     );
-  }
-
-  String _formatRunTime(int? timeStamp) {
-    if (timeStamp == null) return '00:00:00';
-
-    final diff = timeStamp / 1000;
-    int inHours = (diff / 3600).floor();
-    int inMinutes = (diff / 60 % 60).floor();
-    int inSeconds = (diff % 60).floor();
-
-    // Limit maximum display to 999:59:59
-    if (inHours > 999) {
-      inHours = 999;
-      inMinutes = 59;
-      inSeconds = 59;
-    }
-
-    // If less than 100 hours, show 2 digits; otherwise 3
-    final hourStr = inHours < 100
-        ? inHours.toString().padLeft(2, '0')
-        : inHours.toString().padLeft(3, '0');
-
-    return '$hourStr:${inMinutes.toString().padLeft(2, '0')}:${inSeconds.toString().padLeft(2, '0')}';
   }
 }

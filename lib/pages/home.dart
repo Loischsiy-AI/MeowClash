@@ -1,251 +1,58 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/providers/providers.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/widgets.dart';
+import 'dart:io';
+
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/providers/providers.dart';
+import 'package:flclashx/state.dart';
+import 'package:flclashx/widgets/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 typedef OnSelected = void Function(int index);
 
-class HomePage extends StatefulWidget {
+class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  final Map<int, FocusNode> _navFocusNodes = {};
-
-  FocusNode _getNavFocusNode(int index) {
-    return _navFocusNodes.putIfAbsent(index, () => FocusNode());
-  }
-
-  @override
-  void dispose() {
-    for (final node in _navFocusNodes.values) {
-      node.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return HomeBackScope(
-      child: Material(
-        color: context.colorScheme.surface,
+  Widget build(BuildContext context) => HomeBackScope(
         child: Consumer(
-          builder: (context, ref, child) {
-            final state = ref.watch(navigationStateProvider);
-            final isMobile = state.viewMode == ViewMode.mobile;
+          builder: (_, ref, child) {
+            final state = ref.watch(homeStateProvider);
+            final viewMode = state.viewMode;
             final navigationItems = state.navigationItems;
-            final currentIndex = state.currentIndex;
-            final bottomNavigationBar = globalState.isAndroidTV
-                ? _buildTVBottomNavBar(
-                    context,
-                    navigationItems: navigationItems,
-                    currentIndex: currentIndex,
-                  )
-                : GoogleBottomNavBar(
-                    navigationItems: navigationItems,
-                    selectedIndex: currentIndex,
-                    onTabChange: (index) {
-                      globalState.appController.toPage(navigationItems[index].label);
-                    },
-                  );
-            if (isMobile) {
-              return AnnotatedRegion<SystemUiOverlayStyle>(
-                value: globalState.appState.systemUiOverlayStyle.copyWith(
-                  systemNavigationBarColor:
-                      context.colorScheme.surfaceContainer,
-                ),
-                child: Column(
-                  children: [
-                    Flexible(
-                      flex: 1,
-                      child: MediaQuery.removePadding(
-                        removeTop: false,
-                        removeBottom: true,
-                        removeLeft: true,
-                        removeRight: true,
-                        context: context,
-                        child: child!,
-                      ),
-                    ),
-                    MediaQuery.removePadding(
-                      removeTop: true,
-                      removeBottom: false,
-                      removeLeft: true,
-                      removeRight: true,
-                      context: context,
-                      child: bottomNavigationBar,
-                    ),
-                  ],
-                ),
-              );
-            } else {
-              return child!;
-            }
+            final pageLabel = state.pageLabel;
+            final index = navigationItems.lastIndexWhere(
+              (element) => element.label == pageLabel,
+            );
+            final currentIndex = index == -1 ? 0 : index;
+            final navigationBar = CommonNavigationBar(
+              viewMode: viewMode,
+              navigationItems: navigationItems,
+              currentIndex: currentIndex,
+            );
+            final bottomNavigationBar =
+                viewMode == ViewMode.mobile ? navigationBar : null;
+            final sideNavigationBar =
+                viewMode != ViewMode.mobile ? navigationBar : null;
+            return CommonScaffold(
+              key: globalState.homeScaffoldKey,
+              title: Intl.message(
+                pageLabel.name,
+              ),
+              sideNavigationBar: sideNavigationBar,
+              body: child!,
+              bottomNavigationBar: bottomNavigationBar,
+            );
           },
-          child: Consumer(
-            builder: (_, ref, _) {
-              final navigationItems = ref
-                  .watch(currentNavigationItemsStateProvider)
-                  .value;
-              final isMobile = ref.watch(isMobileViewProvider);
-              return _HomePageView(
-                navigationItems: navigationItems,
-                pageBuilder: (_, index) {
-                  final navigationItem = navigationItems[index];
-                  final navigationView = navigationItem.builder(context);
-                  return KeepScope(
-                    key: ValueKey(navigationItem.label),
-                    keep: navigationItem.keep,
-                    child: isMobile
-                        ? navigationView
-                        : Navigator(
-                            pages: [MaterialPage(child: navigationView)],
-                            onDidRemovePage: (_) {},
-                          ),
-                  );
-                },
-              );
-            },
-          ),
+          child: _HomePageView(),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTVBottomNavBar(
-    BuildContext context, {
-    required List<NavigationItem> navigationItems,
-    required int currentIndex,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.colorScheme.surfaceContainer,
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 20,
-            color: Colors.black.withValues(alpha: 0.15),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: FocusTraversalGroup(
-          policy: WidgetOrderTraversalPolicy(),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: navigationItems.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              final isSelected = index == currentIndex;
-              final focusNode = _getNavFocusNode(index);
-              return FocusTraversalOrder(
-                order: NumericFocusOrder(index.toDouble()),
-                child: AnimatedBuilder(
-                  animation: focusNode,
-                  builder: (context, child) {
-                    final isFocused = focusNode.hasFocus;
-                    return InkWell(
-                      focusNode: focusNode,
-                      onTap: () {
-                        globalState.appController.toPage(item.label);
-                      },
-                      onFocusChange: (hasFocus) {
-                        if (hasFocus && !isSelected) {
-                          globalState.appController.toPage(item.label);
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? context.colorScheme.secondaryContainer
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          border: isFocused
-                              ? Border.all(
-                                  color: context.colorScheme.primary,
-                                  width: 2,
-                                )
-                              : Border.all(
-                                  color: Colors.transparent,
-                                  width: 2,
-                                ),
-                        ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconTheme(
-                                data: IconThemeData(
-                                  color: isSelected
-                                      ? context.colorScheme.onSecondaryContainer
-                                      : context.colorScheme.onSurfaceVariant,
-                                  size: 24,
-                                ),
-                                child: item.icon,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _getLocalizedLabel(item.label),
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? context.colorScheme.onSecondaryContainer
-                                      : context.colorScheme.onSurfaceVariant,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _getLocalizedLabel(PageLabel label) {
-    switch (label) {
-      case PageLabel.dashboard:
-        return appLocalizations.dashboard;
-      case PageLabel.proxies:
-        return appLocalizations.proxies;
-      case PageLabel.profiles:
-        return appLocalizations.profiles;
-      case PageLabel.tools:
-        return appLocalizations.tools;
-      case PageLabel.logs:
-        return appLocalizations.logs;
-      case PageLabel.requests:
-        return appLocalizations.requests;
-      case PageLabel.resources:
-        return appLocalizations.resources;
-      case PageLabel.script:
-        return appLocalizations.script;
-      case PageLabel.connections:
-        return appLocalizations.connections;
-    }
-  }
+      );
 }
 
 class _HomePageView extends ConsumerStatefulWidget {
-  final IndexedWidgetBuilder pageBuilder;
-  final List<NavigationItem> navigationItems;
-
-  const _HomePageView({
-    required this.pageBuilder,
-    required this.navigationItems,
-  });
+  const _HomePageView();
 
   @override
   ConsumerState createState() => _HomePageViewState();
@@ -253,52 +60,42 @@ class _HomePageView extends ConsumerStatefulWidget {
 
 class _HomePageViewState extends ConsumerState<_HomePageView> {
   late PageController _pageController;
-  late final ProviderSubscription<PageLabel> _pageLabelSubscription;
 
   @override
-  initState() {
+  void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _pageIndex);
-    _pageLabelSubscription = ref.listenManual(currentPageLabelProvider, (
-      prev,
-      next,
-    ) {
+    _pageController = PageController(
+      initialPage: _pageIndex,
+      keepPage: true,
+    );
+    ref.listenManual(currentPageLabelProvider, (prev, next) {
       if (prev != next) {
         _toPage(next);
       }
     });
-  }
-
-  @override
-  void didUpdateWidget(covariant _HomePageView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.navigationItems.length != widget.navigationItems.length) {
-      _updatePageController();
-    }
+    ref.listenManual(currentNavigationsStateProvider, (prev, next) {
+      if (prev?.value.length != next.value.length) {
+        _updatePageController();
+      }
+    });
   }
 
   int get _pageIndex {
-    return widget.navigationItems.indexWhere(
+    final navigationItems = ref.read(currentNavigationsStateProvider).value;
+    return navigationItems.indexWhere(
       (item) => item.label == globalState.appState.pageLabel,
     );
   }
 
-  Future<void> _toPage(
-    PageLabel pageLabel, [
-    bool ignoreAnimateTo = false,
-  ]) async {
+  _toPage(PageLabel pageLabel, [bool ignoreAnimateTo = false]) async {
     if (!mounted) {
       return;
     }
-    final index = widget.navigationItems.indexWhere(
-      (item) => item.label == pageLabel,
-    );
+    final navigationItems = ref.read(currentNavigationsStateProvider).value;
+    final index = navigationItems.indexWhere((item) => item.label == pageLabel);
     if (index == -1) {
       return;
     }
-    
-    FocusManager.instance.primaryFocus?.unfocus();
-    
     final isAnimateToPage = ref.read(appSettingProvider).isAnimateToPage;
     final isMobile = ref.read(isMobileViewProvider);
     if (isAnimateToPage && isMobile && !ignoreAnimateTo) {
@@ -310,106 +107,263 @@ class _HomePageViewState extends ConsumerState<_HomePageView> {
     } else {
       _pageController.jumpToPage(index);
     }
+    if (!mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      FocusManager.instance.primaryFocus?.unfocus();
+    });
   }
 
-  void _updatePageController() {
-    final pageLabel = ref.read(currentPageLabelProvider);
+  _updatePageController() {
+    final pageLabel = globalState.appState.pageLabel;
     _toPage(pageLabel, true);
   }
 
   @override
   void dispose() {
-    _pageLabelSubscription.close();
     _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final navigationItems = ref.watch(currentNavigationsStateProvider).value;
+    final currentLabel = ref.watch(currentPageLabelProvider);
     return PageView.builder(
       controller: _pageController,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: widget.navigationItems.length,
-      itemBuilder: (context, index) {
-        return widget.pageBuilder(context, index);
+      itemCount: navigationItems.length,
+      itemBuilder: (_, index) {
+        final navigationItem = navigationItems[index];
+        final isActive = navigationItem.label == currentLabel;
+        return ExcludeFocus(
+          excluding: !isActive,
+          child: KeepScope(
+            keep: navigationItem.keep,
+            key: Key(navigationItem.label.name),
+            child: navigationItem.view,
+          ),
+        );
       },
     );
   }
 }
 
-class HomeBackScope extends ConsumerStatefulWidget {
+class CommonNavigationBar extends ConsumerWidget {
+  final ViewMode viewMode;
+  final List<NavigationItem> navigationItems;
+  final int currentIndex;
+
+  const CommonNavigationBar({
+    super.key,
+    required this.viewMode,
+    required this.navigationItems,
+    required this.currentIndex,
+  });
+
+  @override
+  Widget build(BuildContext context, ref) {
+    if (viewMode == ViewMode.mobile) {
+      return NavigationBarTheme(
+        data: _NavigationBarDefaultsM3(context),
+        child: NavigationBar(
+          destinations: navigationItems
+              .map(
+                (e) => NavigationDestination(
+                  icon: e.icon,
+                  label: Intl.message(e.label.name),
+                ),
+              )
+              .toList(),
+          onDestinationSelected: (index) {
+            globalState.appController.toPage(navigationItems[index].label);
+          },
+          selectedIndex: currentIndex,
+        ),
+      );
+    }
+    final showLabel = ref.watch(appSettingProvider).showLabel;
+    return Material(
+      color: context.colorScheme.surfaceContainer,
+      child: Column(
+        children: [
+          // App logo at the top of sidebar
+          if (!Platform.isMacOS) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                children: [
+                  const SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: CircleAvatar(
+                      foregroundImage: AssetImage("assets/images/icon.png"),
+                      backgroundColor: Colors.transparent,
+                    ),
+                  ),
+                  if (showLabel) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      appName,
+                      style: context.textTheme.labelSmall?.copyWith(
+                        color: context.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Divider(
+              height: 1,
+              indent: 12,
+              endIndent: 12,
+              color: context.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+          ],
+          Expanded(
+            child: ScrollConfiguration(
+              behavior: HiddenBarScrollBehavior(),
+              child: SingleChildScrollView(
+                child: IntrinsicHeight(
+                  child: NavigationRail(
+                    backgroundColor: context.colorScheme.surfaceContainer,
+                    selectedIconTheme: IconThemeData(
+                      color: context.colorScheme.onSurfaceVariant,
+                    ),
+                    unselectedIconTheme: IconThemeData(
+                      color: context.colorScheme.onSurfaceVariant,
+                    ),
+                    selectedLabelTextStyle:
+                        context.textTheme.labelLarge!.copyWith(
+                      color: context.colorScheme.onSurface,
+                    ),
+                    unselectedLabelTextStyle:
+                        context.textTheme.labelLarge!.copyWith(
+                      color: context.colorScheme.onSurface,
+                    ),
+                    destinations: navigationItems
+                        .map(
+                          (e) => NavigationRailDestination(
+                            icon: e.icon,
+                            label: Text(
+                              Intl.message(e.label.name),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onDestinationSelected: (index) {
+                      globalState.appController
+                          .toPage(navigationItems[index].label);
+                    },
+                    extended: false,
+                    selectedIndex: currentIndex,
+                    labelType: showLabel
+                        ? NavigationRailLabelType.all
+                        : NavigationRailLabelType.none,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(
+            height: 16,
+          ),
+          IconButton(
+            onPressed: () {
+              ref.read(appSettingProvider.notifier).updateState(
+                    (state) => state.copyWith(
+                      showLabel: !state.showLabel,
+                    ),
+                  );
+            },
+            icon: const Icon(Icons.menu),
+          ),
+          const SizedBox(
+            height: 16,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavigationBarDefaultsM3 extends NavigationBarThemeData {
+  _NavigationBarDefaultsM3(this.context)
+      : super(
+          height: 80.0,
+          elevation: 3.0,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        );
+
+  final BuildContext context;
+  late final ColorScheme _colors = Theme.of(context).colorScheme;
+  late final TextTheme _textTheme = Theme.of(context).textTheme;
+
+  @override
+  Color? get backgroundColor => _colors.surfaceContainer;
+
+  @override
+  Color? get shadowColor => Colors.transparent;
+
+  @override
+  Color? get surfaceTintColor => Colors.transparent;
+
+  @override
+  WidgetStateProperty<IconThemeData?>? get iconTheme =>
+      WidgetStateProperty.resolveWith((Set<WidgetState> states) => IconThemeData(
+            size: 24.0,
+            color: states.contains(WidgetState.disabled)
+                ? _colors.onSurfaceVariant.opacity38
+                : states.contains(WidgetState.selected)
+                    ? _colors.onSecondaryContainer
+                    : _colors.onSurfaceVariant,
+          ));
+
+  @override
+  Color? get indicatorColor => _colors.secondaryContainer;
+
+  @override
+  ShapeBorder? get indicatorShape => const StadiumBorder();
+
+  @override
+  WidgetStateProperty<TextStyle?>? get labelTextStyle =>
+      WidgetStateProperty.resolveWith((Set<WidgetState> states) =>
+          _textTheme.labelMedium!.apply(
+              overflow: TextOverflow.ellipsis,
+              color: states.contains(WidgetState.disabled)
+                  ? _colors.onSurfaceVariant.opacity38
+                  : states.contains(WidgetState.selected)
+                      ? _colors.onSurface
+                      : _colors.onSurfaceVariant));
+}
+
+class HomeBackScope extends StatelessWidget {
   final Widget child;
 
   const HomeBackScope({super.key, required this.child});
 
   @override
-  ConsumerState<HomeBackScope> createState() => _HomeBackScopeState();
-}
-
-class _HomeBackScopeState extends ConsumerState<HomeBackScope> {
-  int? sdkInt;
-
-  @override
-  void initState() {
-    super.initState();
-    if (system.isAndroid) {
-      system.version.then((value) {
-        if (mounted) {
-          setState(() {
-            sdkInt = value;
-          });
-        }
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (system.isAndroid) {
-      if (sdkInt == null) {
-        return widget.child;
-      }
-
-      final backBlock = ref.watch(backBlockProvider);
-      final currentPage = ref.watch(currentPageLabelProvider);
-      final rootPageLabels = ref.watch(
-        currentNavigationItemsStateProvider.select(
-          (state) => state.value.map((item) => item.label).toSet(),
-        ),
-      );
-      final isCurrentRootPage = rootPageLabels.contains(currentPage);
-
-      if (sdkInt! >= 31) {
-        return PopScope(
-          canPop: !backBlock && isCurrentRootPage,
-          onPopInvokedWithResult: (didPop, _) async {
-            if (didPop || backBlock) return;
-            if (!isCurrentRootPage) {
-              globalState.appController.toPage(PageLabel.dashboard);
-            }
-          },
-          child: widget.child,
-        );
-      }
-
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) async {
-          if (didPop || backBlock) return;
-          if (!isCurrentRootPage) {
-            globalState.appController.toPage(PageLabel.dashboard);
-            return;
-          }
+    if (Platform.isAndroid) {
+      return CommonPopScope(
+        onPop: () async {
           final canPop = Navigator.canPop(context);
           if (canPop) {
             Navigator.pop(context);
           } else {
             await globalState.appController.handleBackOrExit();
           }
+          return false;
         },
-        child: widget.child,
+        child: child,
       );
     }
-    return widget.child;
+    return child;
   }
 }

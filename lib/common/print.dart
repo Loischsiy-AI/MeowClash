@@ -1,24 +1,31 @@
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/common/file_logger.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/state.dart';
 import 'package:flutter/cupertino.dart';
 
 class CommonPrint {
-  static CommonPrint? _instance;
-
-  CommonPrint._internal();
 
   factory CommonPrint() {
     _instance ??= CommonPrint._internal();
     return _instance!;
   }
 
+  CommonPrint._internal();
+  static CommonPrint? _instance;
+
   void log(String? text) {
-    final payload = '[APP] $text';
+    final payload = "[FlClashX] $text";
     debugPrint(payload);
+    
+    // Write to file log
+    fileLogger.log(payload);
+    
     if (!globalState.isInit) {
       return;
     }
-    globalState.appController.addLog(Log.app(payload));
+    globalState.appController.addLog(
+      Log.app(payload),
+    );
   }
 }
 

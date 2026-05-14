@@ -1,8 +1,11 @@
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/providers/providers.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/widgets.dart';
+import 'dart:io';
+
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/providers/providers.dart';
+import 'package:flclashx/state.dart';
+import 'package:flclashx/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,136 +18,239 @@ class RequestsView extends ConsumerStatefulWidget {
   ConsumerState<RequestsView> createState() => _RequestsViewState();
 }
 
-class _RequestsViewState extends ConsumerState<RequestsView> {
-  late final ScrollController _scrollController;
-  var _autoScrollToEnd = false;
+class _RequestsViewState extends ConsumerState<RequestsView> with PageMixin {
+  final _requestsStateNotifier = ValueNotifier<ConnectionsState>(
+    const ConnectionsState(loading: true),
+  );
+  List<Connection> _requests = [];
+  final _tag = CacheTag.requests;
+  late ScrollController _scrollController;
+  bool _isLoad = false;
+
+  double _currentMaxWidth = 0;
+
+  @override
+  Null Function(String value) get onSearch => (value) {
+        _requestsStateNotifier.value = _requestsStateNotifier.value.copyWith(
+          query: value,
+        );
+      };
+
+  @override
+  Null Function(List<String> keywords) get onKeywordsUpdate => (keywords) {
+        _requestsStateNotifier.value =
+            _requestsStateNotifier.value.copyWith(keywords: keywords);
+      };
 
   @override
   void initState() {
     super.initState();
-    final requests = globalState.appState.requests.list;
+    final preOffset = globalState.cacheScrollPosition[_tag] ?? -1;
     _scrollController = ScrollController(
-      initialScrollOffset: requests.length * TrackerInfoItem.height,
+      initialScrollOffset: preOffset > 0 ? preOffset : double.maxFinite,
     );
+    _requests = globalState.appState.requests.list;
+    _requestsStateNotifier.value = _requestsStateNotifier.value.copyWith(
+      connections: _requests,
+    );
+    ref.listenManual(
+      isCurrentPageProvider(
+        PageLabel.requests,
+        handler: (pageLabel, viewMode) =>
+            pageLabel == PageLabel.tools && viewMode == ViewMode.mobile,
+      ),
+      (prev, next) {
+        if (prev != next && next == true) {
+          initPageState();
+        }
+      },
+      fireImmediately: true,
+    );
+    ref.listenManual(
+      requestsProvider.select((state) => state.list),
+      (prev, next) {
+        if (!connectionListEquality.equals(prev, next)) {
+          _requests = next;
+          updateRequestsThrottler();
+        }
+      },
+    );
+  }
+
+  double _calcCacheHeight(Connection item) {
+    final size = globalState.measure.computeTextSize(
+      Text(
+        item.desc,
+        style: context.textTheme.bodyLarge,
+      ),
+      maxWidth: _currentMaxWidth,
+    );
+    final chainsText = item.chains.join("");
+    final length = item.chains.length;
+    final chainSize = globalState.measure.computeTextSize(
+      Text(
+        chainsText,
+        style: context.textTheme.bodyMedium,
+      ),
+      maxWidth: (_currentMaxWidth - (length - 1) * 6 - length * 24),
+    );
+    final baseHeight = globalState.measure.bodyMediumHeight;
+    final lines = (chainSize.height / baseHeight).round();
+    final computerHeight =
+        size.height + chainSize.height + 24 + 24 * (lines - 1);
+    return computerHeight + 8 + 32 + globalState.measure.bodyMediumHeight;
   }
 
   @override
   void dispose() {
+    _requestsStateNotifier.dispose();
     _scrollController.dispose();
+    _currentMaxWidth = 0;
     super.dispose();
   }
 
-  void _onSearch(String value) {
-    ref.read(requestsSearchProvider.notifier).state = value;
+  void updateRequestsThrottler() {
+    throttler.call(FunctionTag.requests, () {
+      final isEquality = connectionListEquality.equals(
+        _requests,
+        _requestsStateNotifier.value.connections,
+      );
+      if (isEquality) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _requestsStateNotifier.value = _requestsStateNotifier.value.copyWith(
+            connections: _requests,
+          );
+        }
+      });
+    }, duration: commonDuration);
   }
 
-  void _onKeywordsUpdate(List<String> keywords) {
-    ref.read(requestsKeywordsProvider.notifier).state = keywords;
-  }
-
-  void _toggleAutoScroll() {
-    setState(() {
-      _autoScrollToEnd = !_autoScrollToEnd;
+  void _preLoad() {
+    if (_isLoad == true) {
+      return;
+    }
+    _isLoad = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      final isMobileView = ref.read(isMobileViewProvider);
+      if (isMobileView) {
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+      final parts = _requests.batch(10);
+      globalState.cacheHeightMap[_tag] ??= FixedMap(
+        _requests.length,
+      );
+      for (var i = 0; i < parts.length; i++) {
+        final part = parts[i];
+        await Future(
+          () {
+            for (final request in part) {
+              globalState.cacheHeightMap[_tag]?.updateCacheValue(
+                request.id,
+                () => _calcCacheHeight(request),
+              );
+            }
+          },
+        );
+      }
+      _requestsStateNotifier.value = _requestsStateNotifier.value.copyWith(
+        loading: false,
+      );
     });
   }
 
-  void _cancelAutoScroll() {
-    if (_autoScrollToEnd) {
-      setState(() {
-        _autoScrollToEnd = false;
-      });
-    }
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final requests = ref.watch(filteredRequestsProvider);
-    final hasRequests = requests.isNotEmpty;
-
-    return CommonScaffold(
-      title: appLocalizations.requests,
-      actions: [
-        IconButton(
-          onPressed: () {
-            ref.read(requestsProvider.notifier).clearRequests();
+  Widget build(BuildContext context) => LayoutBuilder(
+      builder: (_, constraints) => Consumer(
+          builder: (_, ref, child) {
+            final value = ref.watch(
+              patchClashConfigProvider.select(
+                (state) =>
+                    state.findProcessMode == FindProcessMode.always &&
+                    Platform.isAndroid,
+              ),
+            );
+            _currentMaxWidth = constraints.maxWidth - 40 - (value ? 60 : 0);
+            return child!;
           },
-          icon: const Icon(Icons.delete_sweep_outlined),
-        ),
-        IconButton(
-          style: _autoScrollToEnd
-              ? ButtonStyle(
-                  backgroundColor: WidgetStatePropertyAll(
-                    context.colorScheme.secondaryContainer,
-                  ),
-                )
-              : null,
-          onPressed: _toggleAutoScroll,
-          icon: const Icon(Icons.vertical_align_top_outlined),
-        ),
-      ],
-      searchState: AppBarSearchState(onSearch: _onSearch),
-      onKeywordsUpdate: _onKeywordsUpdate,
-      body: !hasRequests
-          ? NullStatus(
-              label: appLocalizations.nullTip(appLocalizations.requests),
-            )
-          : Align(
-              alignment: Alignment.topCenter,
-              child: CommonScrollBar(
-                trackVisibility: false,
-                controller: _scrollController,
-                child: ScrollToEndBox(
-                  controller: _scrollController,
-                  dataSource: requests,
-                  enable: _autoScrollToEnd,
-                  onCancelToEnd: _cancelAutoScroll,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final contentHeight = requests.length * TrackerInfoItem.height;
-                      final listViewHeight = contentHeight < constraints.maxHeight
-                          ? contentHeight
-                          : constraints.maxHeight;
-
-                      return SizedBox(
-                        height: listViewHeight,
-                        child: ListView.builder(
-                          reverse: true,
-                          physics: const NextClampingScrollPhysics(),
+          child: TextScaleNotification(
+            child: ValueListenableBuilder<ConnectionsState>(
+              valueListenable: _requestsStateNotifier,
+              builder: (_, state, __) {
+                _preLoad();
+                final connections = state.list;
+                final items = connections
+                    .map<Widget>(
+                      (connection) => ConnectionItem(
+                        key: Key(connection.id),
+                        connection: connection,
+                        onClickKeyword: (value) {
+                          context.commonScaffoldState?.addKeyword(value);
+                        },
+                      ),
+                    )
+                    .separated(
+                      const Divider(
+                        height: 0,
+                      ),
+                    )
+                    .toList();
+                final content = connections.isEmpty
+                    ? NullStatus(
+                        label:
+                            appLocalizations.nullTip(appLocalizations.requests),
+                      )
+                    : Align(
+                        alignment: Alignment.topCenter,
+                        child: ScrollToEndBox(
                           controller: _scrollController,
-                          itemBuilder: (_, index) {
-                            if (index.isOdd) {
-                              return const Divider(height: 0);
-                            }
-                            final itemIndex = index ~/ 2;
-                            if (itemIndex >= requests.length) {
-                              return const SizedBox.shrink();
-                            }
-                            final trackerInfo = requests[itemIndex];
-                            return TrackerInfoItem(
-                              key: ValueKey(trackerInfo.id),
-                              trackerInfo: trackerInfo,
-                              onClickKeyword: (value) {
-                                context.commonScaffoldState?.addKeyword(value);
+                          tag: _tag,
+                          dataSource: connections,
+                          child: CommonScrollBar(
+                            controller: _scrollController,
+                            child: CacheItemExtentListView(
+                              tag: _tag,
+                              reverse: true,
+                              shrinkWrap: true,
+                              physics: const NextClampingScrollPhysics(),
+                              controller: _scrollController,
+                              itemExtentBuilder: (index) {
+                                if (index.isOdd) {
+                                  return 0;
+                                }
+                                return _calcCacheHeight(
+                                    connections[index ~/ 2]);
                               },
-                              detailTitle: appLocalizations.details(
-                                appLocalizations.request,
-                              ),
-                            );
-                          },
-                          itemExtentBuilder: (index, _) {
-                            if (index.isOdd) {
-                              return 0;
-                            }
-                            return TrackerInfoItem.height;
-                          },
-                          itemCount: requests.length * 2 - 1,
+                              itemBuilder: (_, index) => items[index],
+                              itemCount: items.length,
+                              keyBuilder: (index) {
+                                if (index.isOdd) {
+                                  return "divider";
+                                }
+                                return connections[index ~/ 2].id;
+                              },
+                            ),
+                          ),
                         ),
                       );
-                    },
-                  ),
-                ),
-              ),
+                return FadeBox(
+                  child: state.loading
+                      ? const Center(
+                          child: CircularProgressIndicator(),
+                        )
+                      : content,
+                );
+              },
             ),
+            onNotification: (_) {
+              globalState.cacheHeightMap[_tag]?.clear();
+            },
+          ),
+        ),
     );
-  }
 }

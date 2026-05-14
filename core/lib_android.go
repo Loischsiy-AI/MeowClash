@@ -110,7 +110,7 @@ func handleStartTun(fd int, callback unsafe.Pointer) {
 			limit:    semaphore.NewWeighted(4),
 		}
 		initTunHook()
-		tunListener, _ := t.Start(fd, currentConfig.General.Tun.Device, currentConfig.General.Tun.Stack, currentConfig.General.Tun.DisableICMPForwarding, uint32(currentConfig.General.Tun.MTU), currentConfig.General.IPv6)
+		tunListener, _ := t.Start(fd, currentConfig.General.Tun.Device, currentConfig.General.Tun.Stack)
 		if tunListener != nil {
 			log.Infoln("TUN address: %v", tunListener.Address())
 			tunHandler.listener = tunListener
@@ -153,25 +153,24 @@ func removeTunHook() {
 func handleGetAndroidVpnOptions() string {
 	tunLock.Lock()
 	defer tunLock.Unlock()
-	ipv6Address := ""
-	if currentConfig.General.IPv6 {
-		ipv6Address = state.DefaultIpv6Address
-	}
+	mixedPort := currentConfig.General.MixedPort
+	// With the HTTP/SOCKS inbound disabled there is no proxy endpoint to
+	// advertise via VpnService.setHttpProxy — force it off so Android doesn't
+	// end up with a ProxyInfo pointing at 127.0.0.1:0.
+	systemProxy := state.CurrentState.VpnProps.SystemProxy && mixedPort != 0
 	options := state.AndroidVpnOptions{
-		Enable:                state.CurrentState.VpnProps.Enable,
-		Port:                  currentConfig.General.MixedPort,
-		Ipv4Address:           state.DefaultIpv4Address,
-		Ipv6Address:           ipv6Address,
-		AccessControl:         state.CurrentState.VpnProps.AccessControl,
-		SystemProxy:           state.CurrentState.VpnProps.SystemProxy,
-		AllowBypass:           state.CurrentState.VpnProps.AllowBypass,
-		RouteAddress:          currentConfig.General.Tun.RouteAddress,
-		RouteMode:             state.CurrentState.VpnProps.RouteMode,
-		BypassDomain:          state.CurrentState.BypassDomain,
-		DnsServerAddress:      state.GetDnsServerAddress(),
-		DozeSuspend:           state.CurrentState.VpnProps.DozeSuspend,
-		DisableIcmpForwarding: currentConfig.General.Tun.DisableICMPForwarding,
-		Mtu:                   uint32(currentConfig.General.Tun.MTU),
+		Enable:           state.CurrentState.VpnProps.Enable,
+		Port:             mixedPort,
+		Ipv4Address:      state.DefaultIpv4Address,
+		Ipv6Address:      state.GetIpv6Address(),
+		AccessControl:    state.CurrentState.VpnProps.AccessControl,
+		SystemProxy:      systemProxy,
+		AllowBypass:      state.CurrentState.VpnProps.AllowBypass,
+		RouteAddress:     currentConfig.General.Tun.RouteAddress,
+		BypassDomain:     state.CurrentState.BypassDomain,
+		DnsServerAddress: state.GetDnsServerAddress(),
+		IncludePackage:   currentConfig.General.Tun.IncludePackage,
+		ExcludePackage:   currentConfig.General.Tun.ExcludePackage,
 	}
 	data, err := json.Marshal(options)
 	if err != nil {

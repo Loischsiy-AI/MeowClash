@@ -1,18 +1,22 @@
-import 'package:meow_clash/clash/clash.dart';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/providers/app.dart';
-import 'package:meow_clash/providers/config.dart';
-import 'package:meow_clash/providers/state.dart';
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/clash/clash.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/common/file_logger.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/providers/app.dart';
+import 'package:flclashx/providers/config.dart';
+import 'package:flclashx/providers/state.dart';
+import 'package:flclashx/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ClashManager extends ConsumerStatefulWidget {
-  final Widget child;
 
-  const ClashManager({super.key, required this.child});
+  const ClashManager({
+    super.key,
+    required this.child,
+  });
+  final Widget child;
 
   @override
   ConsumerState<ClashManager> createState() => _ClashContainerState();
@@ -21,9 +25,7 @@ class ClashManager extends ConsumerStatefulWidget {
 class _ClashContainerState extends ConsumerState<ClashManager>
     with AppMessageListener {
   @override
-  Widget build(BuildContext context) {
-    return widget.child;
-  }
+  Widget build(BuildContext context) => widget.child;
 
   @override
   void initState() {
@@ -45,16 +47,16 @@ class _ClashContainerState extends ConsumerState<ClashManager>
       }
     });
 
-    ref.listenManual(appSettingProvider.select((state) => state.openLogs), (
-      prev,
-      next,
-    ) {
-      if (next) {
-        clashCore.startLog();
-      } else {
-        clashCore.stopLog();
-      }
-    });
+    ref.listenManual(
+      appSettingProvider.select((state) => state.openLogs),
+      (prev, next) {
+        if (next) {
+          clashCore.startLog();
+        } else {
+          clashCore.stopLog();
+        }
+      },
+    );
   }
 
   @override
@@ -68,14 +70,22 @@ class _ClashContainerState extends ConsumerState<ClashManager>
     super.onDelay(delay);
     final appController = globalState.appController;
     appController.setDelay(delay);
-    debouncer.call(FunctionTag.updateDelay, () async {
-      appController.updateGroupsDebounce();
-    }, duration: const Duration(milliseconds: 5000));
+    debouncer.call(
+      FunctionTag.updateDelay,
+      () async {
+        appController.updateGroupsDebounce();
+      },
+      duration: const Duration(milliseconds: 5000),
+    );
   }
 
   @override
   void onLog(Log log) {
     ref.read(logsProvider.notifier).addLog(log);
+    
+    // Write core logs to file
+    fileLogger.log("[${log.logLevel.name.toUpperCase()}] ${log.payload}");
+    
     if (log.logLevel == LogLevel.error) {
       globalState.showNotifier(log.payload);
     }
@@ -83,16 +93,18 @@ class _ClashContainerState extends ConsumerState<ClashManager>
   }
 
   @override
-  void onRequest(TrackerInfo trackerInfo) async {
-    ref.read(requestsProvider.notifier).addRequest(trackerInfo);
-    super.onRequest(trackerInfo);
+  void onRequest(Connection connection) async {
+    ref.read(requestsProvider.notifier).addRequest(connection);
+    super.onRequest(connection);
   }
 
   @override
   Future<void> onLoaded(String providerName) async {
-    ref
-        .read(providersProvider.notifier)
-        .setProvider(await clashCore.getExternalProvider(providerName));
+    ref.read(providersProvider.notifier).setProvider(
+          await clashCore.getExternalProvider(
+            providerName,
+          ),
+        );
     globalState.appController.updateGroupsDebounce();
     super.onLoaded(providerName);
   }

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:meow_clash/enum/enum.dart';
+import 'package:flclashx/enum/enum.dart';
 
 class Debouncer {
   final Map<FunctionTag, Timer?> _operations = {};
@@ -15,11 +15,17 @@ class Debouncer {
     if (timer != null) {
       timer.cancel();
     }
-    _operations[tag] = Timer(duration, () {
-      _operations[tag]?.cancel();
-      _operations.remove(tag);
-      Function.apply(func, args);
-    });
+    _operations[tag] = Timer(
+      duration,
+      () {
+        _operations[tag]?.cancel();
+        _operations.remove(tag);
+        Function.apply(
+          func,
+          args,
+        );
+      },
+    );
   }
 
   void cancel(dynamic tag) {
@@ -41,11 +47,17 @@ class Throttler {
     if (timer != null) {
       return true;
     }
-    _operations[tag] = Timer(duration, () {
-      _operations[tag]?.cancel();
-      _operations.remove(tag);
-      Function.apply(func, args);
-    });
+    _operations[tag] = Timer(
+      duration,
+      () {
+        _operations[tag]?.cancel();
+        _operations.remove(tag);
+        Function.apply(
+          func,
+          args,
+        );
+      },
+    );
     return false;
   }
 
@@ -61,7 +73,7 @@ Future<T> retry<T>({
   required bool Function(T res) retryIf,
   Duration delay = Duration.zero,
 }) async {
-  int attempts = 0;
+  var attempts = 0;
   while (attempts < maxAttempts) {
     final res = await task();
     if (!retryIf(res) || attempts >= maxAttempts) {
@@ -69,7 +81,7 @@ Future<T> retry<T>({
     }
     attempts++;
   }
-  throw 'unknown error';
+  throw "unknown error";
 }
 
 final debouncer = Debouncer();

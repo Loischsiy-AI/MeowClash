@@ -1,16 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:meow_clash/clash/clash.dart';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/l10n/l10n.dart';
-import 'package:meow_clash/manager/hotkey_manager.dart';
-import 'package:meow_clash/manager/manager.dart';
-import 'package:meow_clash/plugins/app.dart';
-import 'package:meow_clash/providers/providers.dart';
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/clash/clash.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/l10n/l10n.dart';
+import 'package:flclashx/manager/hotkey_manager.dart';
+import 'package:flclashx/manager/manager.dart';
+import 'package:flclashx/plugins/app.dart';
+import 'package:flclashx/providers/providers.dart';
+import 'package:flclashx/state.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,113 +18,69 @@ import 'controller.dart';
 import 'pages/pages.dart';
 
 class Application extends ConsumerStatefulWidget {
-  const Application({super.key});
+  const Application({
+    super.key,
+  });
 
   @override
   ConsumerState<Application> createState() => ApplicationState();
 }
 
-class ApplicationState extends ConsumerState<Application>
-    with WidgetsBindingObserver {
+class ApplicationState extends ConsumerState<Application> {
   Timer? _autoUpdateGroupTaskTimer;
   Timer? _autoUpdateProfilesTaskTimer;
 
   final _pageTransitionsTheme = const PageTransitionsTheme(
     builders: <TargetPlatform, PageTransitionsBuilder>{
-      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-      TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
-      TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
-      TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.android: CommonPageTransitionsBuilder(),
+      TargetPlatform.windows: CommonPageTransitionsBuilder(),
+      TargetPlatform.linux: CommonPageTransitionsBuilder(),
+      TargetPlatform.macOS: CommonPageTransitionsBuilder(),
     },
   );
 
   ColorScheme _getAppColorScheme({
     required Brightness brightness,
     int? primaryColor,
-  }) {
-    return ref.read(genColorSchemeProvider(brightness));
-  }
+  }) =>
+      ref.read(genColorSchemeProvider(brightness));
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    globalState.backgroundMode.addListener(_syncAutoUpdateTasks);
-    _syncAutoUpdateTasks();
+
+    if (Platform.isWindows) {
+      windows?.enableDarkModeForApp();
+    }
+
+    _autoUpdateGroupTask();
+    _autoUpdateProfilesTask();
     globalState.appController = AppController(context, ref);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_initApp());
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
+      final currentContext = globalState.navigatorKey.currentContext;
+      if (currentContext != null) {
+        globalState.appController = AppController(currentContext, ref);
+      }
+      await globalState.appController.init();
+      globalState.appController.initLink();
+      app?.initShortcuts();
     });
   }
 
-  bool get _isForeground {
-    final lifecycleState = WidgetsBinding.instance.lifecycleState;
-    return lifecycleState == null ||
-        lifecycleState == AppLifecycleState.resumed;
-  }
-
-  Future<void> _initApp() async {
-    debugPrint('=== _initApp: start ===');
-    final currentContext = globalState.navigatorKey.currentContext;
-    if (currentContext != null && currentContext != context) {
-      globalState.appController = AppController(currentContext, ref);
-    }
-    debugPrint('=== _initApp: calling appController.init ===');
-    await globalState.appController.init();
-    debugPrint('=== _initApp: appController.init done ===');
-    globalState.appController.initLink();
-    if (system.isAndroid) {
-      app.initShortcuts();
-    }
-    debugPrint('=== _initApp: done ===');
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _syncAutoUpdateTasks();
-    if (state == AppLifecycleState.resumed) {
-      if (system.isAndroid &&
-          globalState.config.appSetting.enableHighRefreshRate) {
-        _restoreHighRefreshRate();
-      }
-    }
-  }
-
-  void _syncAutoUpdateTasks() {
-    final shouldRun = _isForeground && !globalState.backgroundMode.value;
-    if (!shouldRun) {
-      _autoUpdateGroupTaskTimer?.cancel();
-      _autoUpdateGroupTaskTimer = null;
-      return;
-    }
-    if (_autoUpdateGroupTaskTimer == null) {
-      _autoUpdateGroupTask();
-    }
-    if (_autoUpdateProfilesTaskTimer == null) {
-      _autoUpdateProfilesTask();
-    }
-  }
-
-  Future<void> _restoreHighRefreshRate() async {
-    try {
-      await FlutterDisplayMode.setHighRefreshRate();
-    } catch (e) {
-      commonPrint.log('Failed to restore high refresh rate: $e');
-    }
-  }
-
   void _autoUpdateGroupTask() {
-    _autoUpdateGroupTaskTimer = Timer.periodic(
-      const Duration(seconds: 60),
-      (_) => globalState.appController.updateGroupsDebounce(),
-    );
+    _autoUpdateGroupTaskTimer = Timer(const Duration(milliseconds: 20000), () {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        globalState.appController.updateGroupsDebounce();
+        _autoUpdateGroupTask();
+      });
+    });
   }
 
   void _autoUpdateProfilesTask() {
-    _autoUpdateProfilesTaskTimer = Timer.periodic(
-      const Duration(hours: 24),
-      (_) => unawaited(globalState.appController.autoUpdateProfiles()),
-    );
+    _autoUpdateProfilesTaskTimer = Timer(const Duration(minutes: 20), () async {
+      await globalState.appController.autoUpdateProfiles();
+      _autoUpdateProfilesTask();
+    });
   }
 
   Widget _buildPlatformState(Widget child) {
@@ -132,126 +88,134 @@ class ApplicationState extends ConsumerState<Application>
       return WindowManager(
         child: TrayManager(
           child: HotKeyManager(
-            child: ProxyManager(child: SmartAutoStopManager(child: child)),
+            child: ProxyManager(
+              child: child,
+            ),
           ),
         ),
       );
     }
     return AndroidManager(
-      child: TileManager(child: SmartAutoStopManager(child: child)),
-    );
-  }
-
-  Widget _buildState(Widget child) {
-    return AppStateManager(
-      child: ClashManager(
-        child: ConnectivityManager(
-          onConnectivityChanged: (results) async {
-            if (!results.contains(ConnectivityResult.vpn)) {
-              clashCore.closeConnections();
-            }
-            globalState.appController.updateLocalIp();
-            globalState.appController.addCheckIpNumDebounce();
-          },
-          child: child,
-        ),
+      child: TileManager(
+        child: child,
       ),
     );
   }
+
+  Widget _buildState(Widget child) => AppStateManager(
+        child: ClashManager(
+          child: ConnectivityManager(
+            onConnectivityChanged: (results) async {
+              if (!results.contains(ConnectivityResult.vpn)) {
+                clashCore.closeConnections();
+              }
+              globalState.appController.updateLocalIp();
+              globalState.appController.addCheckIpNumDebounce();
+            },
+            child: child,
+          ),
+        ),
+      );
 
   Widget _buildPlatformApp(Widget child) {
     if (system.isDesktop) {
-      return WindowHeaderContainer(child: child);
+      return WindowHeaderContainer(
+        child: child,
+      );
     }
-    return VpnManager(child: child);
-  }
-
-  Widget _buildApp(Widget child) {
-    return MessageManager(child: ThemeManager(child: child));
-  }
-
-  @override
-  Widget build(context) {
-    debugPrint('=== Application.build ===');
-    return _buildPlatformState(
-      _buildState(
-        Consumer(
-          builder: (_, ref, child) {
-            final locale = ref.watch(
-              appSettingProvider.select((state) => state.locale),
-            );
-            final themeProps = ref.watch(themeSettingProvider);
-            final fontFamily = themeProps.useHarmonyFont
-                ? 'HarmonyOS_Sans'
-                : null;
-
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              navigatorKey: globalState.navigatorKey,
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-              ],
-              builder: (_, child) {
-                return ValueListenableBuilder<bool>(
-                  valueListenable: globalState.animationEnabled,
-                  builder: (_, enabled, _) {
-                    return TickerMode(
-                      enabled: enabled,
-                      child: AppEnvManager(
-                        child: _buildApp(
-                          AppSidebarContainer(child: _buildPlatformApp(child!)),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-              scrollBehavior: BaseScrollBehavior(),
-              title: appName,
-              locale:
-                  utils.getLocaleForString(locale) ?? utils.getSystemLocale(),
-              supportedLocales: AppLocalizations.delegate.supportedLocales,
-              themeMode: themeProps.themeMode,
-              theme: ThemeData(
-                useMaterial3: true,
-                pageTransitionsTheme: _pageTransitionsTheme,
-                colorScheme: _getAppColorScheme(
-                  brightness: Brightness.light,
-                  primaryColor: themeProps.primaryColor,
-                ),
-                fontFamily: fontFamily,
-              ),
-              darkTheme: ThemeData(
-                useMaterial3: true,
-                pageTransitionsTheme: _pageTransitionsTheme,
-                colorScheme: _getAppColorScheme(
-                  brightness: Brightness.dark,
-                  primaryColor: themeProps.primaryColor,
-                ).toPureBlack(themeProps.pureBlack),
-                fontFamily: fontFamily,
-              ),
-              home: child!,
-            );
-          },
-          child: const HomePage(),
-        ),
-      ),
+    return VpnManager(
+      child: child,
     );
   }
 
+  Widget _buildApp(Widget child) => MessageManager(
+        child: ThemeManager(
+          child: child,
+        ),
+      );
+
   @override
-  void dispose() {
-    globalState.backgroundMode.removeListener(_syncAutoUpdateTasks);
-    WidgetsBinding.instance.removeObserver(this);
+  Widget build(BuildContext context) => _buildPlatformState(
+        _buildState(
+          Consumer(
+            builder: (_, ref, child) {
+              final locale =
+                  ref.watch(appSettingProvider.select((state) => state.locale));
+              final themeProps = ref.watch(themeSettingProvider);
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                navigatorKey: globalState.navigatorKey,
+                checkerboardRasterCacheImages: false,
+                checkerboardOffscreenLayers: false,
+                showPerformanceOverlay: false,
+                localizationsDelegates: const [
+                  AppLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate
+                ],
+                builder: (_, child) {
+                  final Widget app = AppEnvManager(
+                    child: _buildPlatformApp(
+                      _buildApp(child!),
+                    ),
+                  );
+
+                  if (Platform.isMacOS) {
+                    return FittedBox(
+                      fit: BoxFit.contain,
+                      alignment: Alignment.topCenter,
+                      child: SizedBox(
+                        width: 500,
+                        height: 800,
+                        child: app,
+                      ),
+                    );
+                  }
+
+                  return app;
+                },
+                scrollBehavior: BaseScrollBehavior(),
+                title: appName,
+                locale: utils.getLocaleForString(locale),
+                supportedLocales: AppLocalizations.delegate.supportedLocales,
+                themeMode: themeProps.themeMode,
+                theme: ThemeData(
+                  useMaterial3: true,
+                  pageTransitionsTheme: _pageTransitionsTheme,
+                  colorScheme: _getAppColorScheme(
+                    brightness: Brightness.light,
+                    primaryColor: themeProps.primaryColor,
+                  ),
+                  // Reduce animation duration for snappier feel
+                  visualDensity: VisualDensity.adaptivePlatformDensity,
+                ),
+                darkTheme: ThemeData(
+                  useMaterial3: true,
+                  pageTransitionsTheme: _pageTransitionsTheme,
+                  colorScheme: _getAppColorScheme(
+                    brightness: Brightness.dark,
+                    primaryColor: themeProps.primaryColor,
+                  ).toPureBlack(themeProps.pureBlack),
+                  // Reduce animation duration for snappier feel
+                  visualDensity: VisualDensity.adaptivePlatformDensity,
+                ),
+                home: child,
+              );
+            },
+            child: const HomePage(),
+          ),
+        ),
+      );
+
+  @override
+  Future<void> dispose() async {
     linkManager.destroy();
     _autoUpdateGroupTaskTimer?.cancel();
     _autoUpdateProfilesTaskTimer?.cancel();
-    if (!system.isAndroid && !globalState.isExiting) {
-      unawaited(globalState.appController.handleExit());
-    }
+    await clashCore.destroy();
+    await globalState.appController.savePreferences();
+    await globalState.appController.handleExit();
     super.dispose();
   }
 }

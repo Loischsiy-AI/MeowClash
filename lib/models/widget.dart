@@ -4,24 +4,23 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'generated/widget.freezed.dart';
 
 @freezed
-abstract class ActivateState with _$ActivateState {
-  const factory ActivateState({required bool active}) = _ActivateState;
+class ActivateState with _$ActivateState {
+  const factory ActivateState({
+    required bool active,
+  }) = _ActivateState;
 }
 
 @freezed
-abstract class CommonMessage with _$CommonMessage {
+class CommonMessage with _$CommonMessage {
   const factory CommonMessage({
     required String id,
     required String text,
     @Default(Duration(seconds: 3)) Duration duration,
-    VoidCallback? onAction,
-    String? actionLabel,
-    @Default(false) bool showCountdown,
   }) = _CommonMessage;
 }
 
 @freezed
-abstract class AppBarState with _$AppBarState {
+class AppBarState with _$AppBarState {
   const factory AppBarState({
     @Default([]) List<Widget> actions,
     AppBarSearchState? searchState,
@@ -30,17 +29,18 @@ abstract class AppBarState with _$AppBarState {
 }
 
 @freezed
-abstract class AppBarSearchState with _$AppBarSearchState {
+class AppBarSearchState with _$AppBarSearchState {
   const factory AppBarSearchState({
     required Function(String) onSearch,
-    String? query,
+    @Default(false) bool isSearch,
   }) = _AppBarSearchState;
 }
 
 @freezed
-abstract class AppBarEditState with _$AppBarEditState {
+class AppBarEditState with _$AppBarEditState {
   const factory AppBarEditState({
-    @Default(0) int editCount,
+    @Default(0) editCount,
+    @Default(false) bool isEdit,
     required Function() onExit,
   }) = _AppBarEditState;
 }

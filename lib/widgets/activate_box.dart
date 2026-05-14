@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 
 class ActivateBox extends StatelessWidget {
+
+  const ActivateBox({
+    super.key,
+    required this.child,
+    this.active = false,
+  });
   final Widget child;
   final bool active;
 
-  const ActivateBox({super.key, required this.child, this.active = false});
-
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(ignoring: !active, child: child);
-  }
+  Widget build(BuildContext context) => IgnorePointer(
+      ignoring: !active,
+      child: child,
+    );
 }

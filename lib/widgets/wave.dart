@@ -3,10 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 class WaveView extends StatefulWidget {
-  final double waveAmplitude;
-  final double waveFrequency;
-  final Color waveColor;
-  final Duration duration;
 
   const WaveView({
     super.key,
@@ -15,6 +11,10 @@ class WaveView extends StatefulWidget {
     required this.waveColor,
     this.duration = const Duration(seconds: 2),
   });
+  final double waveAmplitude;
+  final double waveFrequency;
+  final Color waveColor;
+  final Duration duration;
 
   @override
   State<WaveView> createState() => _WaveViewState();
@@ -27,8 +27,10 @@ class _WaveViewState extends State<WaveView>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration)
-      ..repeat();
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+    )..repeat();
   }
 
   @override
@@ -38,39 +40,26 @@ class _WaveViewState extends State<WaveView>
   }
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (_, constraints) {
-        return RepaintBoundary(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              return CustomPaint(
-                painter: WavePainter(
-                  animationValue: _controller.value,
-                  waveAmplitude: widget.waveAmplitude,
-                  waveFrequency: widget.waveFrequency,
-                  waveColor: widget.waveColor,
-                ),
-                size: Size(constraints.maxWidth, constraints.maxHeight),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => LayoutBuilder(builder: (_, constraints) => RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) => CustomPaint(
+              painter: WavePainter(
+                animationValue: _controller.value,
+                waveAmplitude: widget.waveAmplitude,
+                waveFrequency: widget.waveFrequency,
+                waveColor: widget.waveColor,
+              ),
+              size: Size(
+                constraints.maxWidth,
+                constraints.maxHeight,
+              ),
+            ),
+        ),
+      ));
 }
 
 class WavePainter extends CustomPainter {
-  final double animationValue;
-  final double waveAmplitude;
-  final double waveFrequency;
-  final Color waveColor;
-
-  late Paint _paint;
-  final Path _path = Path();
-  Color _lastColor;
 
   WavePainter({
     required this.animationValue,
@@ -82,6 +71,14 @@ class WavePainter extends CustomPainter {
       ..color = waveColor
       ..style = PaintingStyle.fill;
   }
+  final double animationValue;
+  final double waveAmplitude;
+  final double waveFrequency;
+  final Color waveColor;
+
+  late Paint _paint;
+  final Path _path = Path();
+  Color _lastColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -118,10 +115,8 @@ class WavePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant WavePainter oldDelegate) {
-    return oldDelegate.animationValue != animationValue ||
+  bool shouldRepaint(covariant WavePainter oldDelegate) => oldDelegate.animationValue != animationValue ||
         oldDelegate.waveAmplitude != waveAmplitude ||
         oldDelegate.waveFrequency != waveFrequency ||
         oldDelegate.waveColor != waveColor;
-  }
 }

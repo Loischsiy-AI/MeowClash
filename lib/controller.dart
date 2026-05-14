@@ -3,44 +3,34 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:archive/archive_io.dart';
-import 'package:meow_clash/clash/clash.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/plugins/app.dart';
-import 'package:meow_clash/plugins/service.dart' as vpn_service;
-import 'package:meow_clash/providers/providers.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/dialog.dart';
-import 'package:collection/collection.dart';
+import 'package:archive/archive.dart';
+import 'package:flclashx/clash/clash.dart';
+import 'package:flclashx/common/archive.dart';
+import 'package:flclashx/services/subscription_notification_service.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/plugins/app.dart';
+import 'package:flclashx/providers/providers.dart';
+import 'package:flclashx/state.dart';
+import 'package:flclashx/widgets/dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' hide windows;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:yaml/yaml.dart';
 
 import 'common/common.dart';
-import 'common/flclash_database_extractor.dart';
 import 'models/models.dart';
+import 'plugins/vpn.dart';
 import 'views/profiles/override_profile.dart';
 
 class AppController {
+  AppController(this.context, WidgetRef ref) : _ref = ref;
   int? lastProfileModified;
-
+  Timer? _profileUpdateTimer;
   final BuildContext context;
   final WidgetRef _ref;
-
-  Timer? _wakelockSyncTimer;
-  Completer<void>? _restartLock;
-  Completer<void>? _exitLock;
-  int _backgroundLoadVersion = 0;
-
-  int _updateGroupsRetryCount = 0;
-  bool _isUpdatingGroups = false;
-
-  AppController(this.context, WidgetRef ref) : _ref = ref;
 
   void setupClashConfigDebounce() {
     debouncer.call(FunctionTag.setupClashConfig, () async {
@@ -64,11 +54,9 @@ class AppController {
     });
   }
 
-  void addCheckIp() {
-    _ref.read(checkIpNumProvider.notifier).add();
-  }
-
-  void applyProfileDebounce({bool silence = false}) {
+  void applyProfileDebounce({
+    bool silence = false,
+  }) {
     debouncer.call(FunctionTag.applyProfile, (silence) {
       applyProfile(silence: silence);
     }, args: [silence]);
@@ -79,47 +67,99 @@ class AppController {
   }
 
   void changeProxyDebounce(String groupName, String proxyName) {
-    debouncer.call(FunctionTag.changeProxy, (
-      String groupName,
-      String proxyName,
-    ) async {
-      await changeProxy(groupName: groupName, proxyName: proxyName);
+    debouncer.call(FunctionTag.changeProxy,
+        (String groupName, String proxyName) async {
+      await changeProxy(
+        groupName: groupName,
+        proxyName: proxyName,
+      );
       await updateGroups();
-      addCheckIp();
+      // Update cached server name for foreground notification
+      _updateForegroundServerName(groupName, proxyName);
     }, args: [groupName, proxyName]);
   }
 
-  Future<void> restartCore() async {
-    if (_restartLock != null) {
-      return _restartLock!.future;
+  /// Update cached server name in VPN plugin for foreground notification
+  /// Also sends IPC message to service isolate to update selectedMap
+  void _updateForegroundServerName(String groupName, String serverName) {
+    vpn?.updateServerName(serverName);
+    // Send IPC message to service isolate (Android only)
+    clashLib?.sendIpcMessage({
+      'action': 'updateForegroundServer',
+      'groupName': groupName,
+      'serverName': serverName,
+    });
+  }
+
+  /// Initialize foreground notification cache with current profile and server
+  void initForegroundCache() {
+    final profile = globalState.config.currentProfile;
+    if (profile == null) return;
+
+    final profileName = profile.label ?? profile.id;
+
+    // Decode service name from header
+    String serviceName = "";
+    final svc = profile.providerHeaders['flclashx-servicename'];
+    if (svc != null && svc.isNotEmpty) {
+      try {
+        final normalized = base64.normalize(svc);
+        serviceName = utf8.decode(base64.decode(normalized)).trim();
+      } catch (_) {
+        serviceName = svc.trim();
+      }
     }
 
-    _restartLock = Completer<void>();
-    commonPrint.log('restart core');
+    vpn?.updateProfileInfo(
+      profileName: profileName,
+      serviceName: serviceName,
+    );
 
-    try {
-      final wasRunning = _ref.read(runTimeProvider.notifier).isStart;
-      if (wasRunning) {
-        await globalState.handleStop();
+    // Get current server name from selectedMap
+    String? groupName = profile.providerHeaders['flclashx-serverinfo'];
+    if (groupName != null && groupName.isNotEmpty) {
+      String decodedGroupName;
+      try {
+        final normalized = base64.normalize(groupName);
+        decodedGroupName = utf8.decode(base64.decode(normalized)).trim();
+      } catch (_) {
+        decodedGroupName = groupName.trim();
       }
-      await Future.delayed(const Duration(milliseconds: 500));
-      await _initCore();
-      if (wasRunning) {
-        if (system.isDesktop) {
-          await _fastStart();
-        } else {
-          await globalState.handleStart();
-        }
-      }
-    } finally {
-      _restartLock?.complete();
-      _restartLock = null;
+      final serverName = profile.selectedMap[decodedGroupName] ?? "";
+      vpn?.updateServerName(serverName);
+    }
+  }
+
+  Future<void> restartCore() async {
+    commonPrint.log("restart core");
+    await clashService?.reStart();
+    await _initCore();
+    if (_ref.read(runTimeProvider.notifier).isStart) {
+      await globalState.handleStart();
     }
   }
 
   Future<void> updateStatus(bool isStart) async {
+    await StatusBarManager.updateIcon(isConnected: isStart);
+
     if (isStart) {
-      await _fastStart();
+      // Initialize foreground notification cache before starting
+      initForegroundCache();
+      await globalState.handleStart([
+        updateRunTime,
+        updateTraffic,
+      ]);
+      final currentLastModified =
+          await _ref.read(currentProfileProvider)?.profileLastModified;
+      if (currentLastModified == null || lastProfileModified == null) {
+        addCheckIpNumDebounce();
+        return;
+      }
+      if (currentLastModified <= (lastProfileModified ?? 0)) {
+        addCheckIpNumDebounce();
+        return;
+      }
+      applyProfileDebounce();
     } else {
       await globalState.handleStop();
       clashCore.resetTraffic();
@@ -130,164 +170,34 @@ class AppController {
     }
   }
 
-  Future<void> _fastStart() async {
-    final patchConfig = _ref.read(patchClashConfigProvider);
-    final isDesktop = system.isDesktop;
-
-    if (isDesktop && patchConfig.tun.enable) {
-      await _quickSetupConfig(enableTun: false);
-      await globalState.handleStart([updateRunTime, updateTraffic]);
-
-      Future.microtask(() async {
-        final res = await _requestAdmin(true);
-        if (res.needRestart) {
-          await restartCore();
-        } else if (!res.isError) {
-          await _updateClashConfig();
-        }
-        _backgroundLoad();
-      });
-
-      _scheduleCheckIpRefresh();
-      return;
-    }
-
-    final needReapply = await _checkIfNeedReapply();
-    if (needReapply) {
-      await _quickSetupConfig();
-    }
-
-    await globalState.handleStart([updateRunTime, updateTraffic]);
-
-    _scheduleCheckIpRefresh();
-
-    _backgroundLoad();
-  }
-
-
-
-  void _scheduleCheckIpRefresh() {
-    Future.delayed(const Duration(seconds: 1), () {
-      addCheckIpNumDebounce();
-    });
-  }
-
-  void _backgroundLoad() {
-    final version = ++_backgroundLoadVersion;
-
-    Future.microtask(() async {
-      try {
-        final groups = await clashCore.getProxiesGroups();
-        if (version != _backgroundLoadVersion) return;
-
-        final providers = await clashCore.getExternalProviders();
-        if (version != _backgroundLoadVersion) return;
-
-        _ref.read(groupsProvider.notifier).value = groups;
-        _ref.read(providersProvider.notifier).value = providers;
-
-        await Future.delayed(const Duration(seconds: 2));
-        if (version != _backgroundLoadVersion) return;
-        await clashCore.requestGc();
-      } catch (e) {
-        commonPrint.log('Background load error: $e');
-      }
-    });
-  }
-
-  Future<bool> _checkIfNeedReapply() async {
-    final currentLastModified = await _ref
-        .read(currentProfileProvider)
-        ?.profileLastModified;
-    if (currentLastModified != null &&
-        lastProfileModified != null &&
-        currentLastModified <= lastProfileModified!) {
-      return false;
-    }
-    return true;
-  }
-
-  Future<void> _setupCoreConfig({bool? enableTun}) async {
-    await _ref.read(currentProfileProvider)?.checkAndUpdate();
-    final patchConfig = _ref.read(patchClashConfigProvider);
-    final targetTun = enableTun ?? patchConfig.tun.enable;
-
-    final realTunEnable = await _prepareTun(targetTun);
-    if (realTunEnable == null) return;
-
-    final realPatchConfig = patchConfig.copyWith.tun(enable: realTunEnable);
-    final params = await globalState.getSetupParams(
-      pathConfig: realPatchConfig,
-    );
-    final message = await clashCore.setupConfig(params);
-    if (message.isNotEmpty) {
-      await _rollbackConfig();
-      throw message;
-    }
-    globalState.backupSuccessfulConfig(params);
-    lastProfileModified = await _ref.read(
-      currentProfileProvider.select((state) => state?.profileLastModified),
-    );
-  }
-
-  Future<void> _quickSetupConfig({bool? enableTun}) async {
-    await safeRun(() async {
-      await _setupCoreConfig(enableTun: enableTun);
-    }, needLoading: false);
-  }
-
-  Future<void> updateRunTime() async {
+  void updateRunTime() {
     final startTime = globalState.startTime;
-    if (startTime == null) {
-      if (_ref.read(runTimeProvider) != null) {
-        _ref.read(runTimeProvider.notifier).value = null;
-      }
-      return;
+    if (startTime != null) {
+      final startTimeStamp = startTime.millisecondsSinceEpoch;
+      final nowTimeStamp = DateTime.now().millisecondsSinceEpoch;
+      _ref.read(runTimeProvider.notifier).value = nowTimeStamp - startTimeStamp;
+    } else {
+      _ref.read(runTimeProvider.notifier).value = null;
     }
-
-    final startTimeStamp = startTime.millisecondsSinceEpoch;
-    final nowTimeStamp = DateTime.now().millisecondsSinceEpoch;
-    final elapsed = nowTimeStamp - startTimeStamp;
-
-    final current = _ref.read(runTimeProvider);
-    if (current == null) {
-      _ref.read(runTimeProvider.notifier).value = elapsed;
-      return;
-    }
-    _ref.read(runTimeProvider.notifier).value = elapsed;
-  }
-
-  Future<bool> _shouldUpdateDashboardTick() async {
-    final lifecycleState = WidgetsBinding.instance.lifecycleState;
-    if (lifecycleState != AppLifecycleState.resumed) return false;
-
-    if (system.isDesktop) {
-      if (await window?.isVisible == false) return false;
-      if (await window?.isMinimized == true) return false;
-    }
-
-    return true;
   }
 
   Future<void> updateTraffic() async {
-    _ref.read(totalTrafficProvider.notifier).value = await clashCore
-        .getTotalTraffic();
-    if (!await _shouldUpdateDashboardTick()) {
-      return;
-    }
     final traffic = await clashCore.getTraffic();
     _ref.read(trafficsProvider.notifier).addTraffic(traffic);
+    _ref.read(totalTrafficProvider.notifier).value =
+        await clashCore.getTotalTraffic();
   }
 
   Future<void> addProfile(Profile profile) async {
     _ref.read(profilesProvider.notifier).setProfile(profile);
     if (_ref.read(currentProfileIdProvider) != null) return;
     _ref.read(currentProfileIdProvider.notifier).value = profile.id;
+    applyProfileDebounce(silence: true);
   }
 
   Future<void> deleteProfile(String id) async {
     _ref.read(profilesProvider.notifier).deleteProfileById(id);
-    await clearEffect(id);
+    clearEffect(id);
     if (globalState.config.currentProfileId == id) {
       final profiles = globalState.config.profiles;
       final currentProfileId = _ref.read(currentProfileIdProvider.notifier);
@@ -302,8 +212,8 @@ class AppController {
   }
 
   Future<void> updateProviders() async {
-    _ref.read(providersProvider.notifier).value = await clashCore
-        .getExternalProviders();
+    _ref.read(providersProvider.notifier).value =
+        await clashCore.getExternalProviders();
   }
 
   Future<void> updateLocalIp() async {
@@ -312,13 +222,418 @@ class AppController {
     _ref.read(localIpProvider.notifier).value = await utils.getLocalIpAddress();
   }
 
+  void applySubscriptionSettings(Set<String>? settings) {
+    try {
+      final currentSettings = _ref.read(appSettingProvider);
+      if (currentSettings.overrideProviderSettings) {
+        commonPrint.log(
+            "Override provider settings enabled - ignoring subscription settings");
+        return;
+      }
+
+      // If settings is null (header removed), reset to defaults (false)
+      final effectiveSettings = settings ?? {};
+
+      _ref
+          .read(appSettingProvider.notifier)
+          .updateState((state) => state.copyWith(
+                minimizeOnExit: effectiveSettings.contains('minimize'),
+                autoLaunch: effectiveSettings.contains('autorun'),
+                silentLaunch: effectiveSettings.contains('shadowstart'),
+                autoRun: effectiveSettings.contains('autostart'),
+                autoCheckUpdate: effectiveSettings.contains('autoupdate'),
+              ));
+    } catch (e) {
+      // Silently ignore subscription settings errors
+    }
+  }
+
+  void _applyAllHeaderSettings(Profile profile, {required bool isNewProfile}) {
+    final headers = profile.providerHeaders;
+    if (headers.isEmpty) return;
+
+    final customBehavior = headers['flclashx-custom'];
+
+    final shouldApply = switch (customBehavior) {
+      'add' => isNewProfile,
+      'update' => true,
+      _ => false,
+    };
+
+    if (!shouldApply) return;
+
+    _applyProviderSettings(headers);
+    _applyThemeColor(headers);
+    _applyCustomViewSettings(profile);
+  }
+
+  void _applyProviderSettings(Map<String, String> headers) {
+    try {
+      final currentSettings = _ref.read(appSettingProvider);
+      if (currentSettings.overrideProviderSettings) {
+        commonPrint.log(
+            "Override provider settings enabled - ignoring provider settings");
+        return;
+      }
+
+      final settingsHeader = headers['flclashx-settings'];
+      if (settingsHeader != null) {
+        final settings = settingsHeader
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .where((s) => s.isNotEmpty)
+            .toSet();
+        applySubscriptionSettings(settings);
+      }
+    } catch (e) {
+      commonPrint.log("Failed to apply provider settings: $e");
+    }
+  }
+
+  void _applyThemeColor(Map<String, String> headers) {
+    try {
+      final hexHeader = headers['flclashx-hex'];
+      if (hexHeader != null && hexHeader.isNotEmpty) {
+        _applyThemeColorFromHex(hexHeader);
+      }
+    } catch (e) {
+      commonPrint.log("Failed to apply theme color: $e");
+    }
+  }
+
+  void _applyThemeColorFromHex(String hexHeader) {
+    try {
+      final parts = hexHeader.split(':');
+      final hexString = parts[0].trim().replaceAll('#', '');
+      final variantName = parts.length > 1 ? parts[1].trim() : null;
+
+      // Check for pureblack flag in any position after color
+      bool enablePureBlack = false;
+      for (int i = 1; i < parts.length; i++) {
+        final part = parts[i].trim().toLowerCase();
+        if (part == 'pureblack') {
+          enablePureBlack = true;
+          break;
+        }
+      }
+
+      if (hexString.length != 6 && hexString.length != 8) {
+        commonPrint.log('Invalid hex color length: $hexString');
+        return;
+      }
+
+      final colorValue = int.parse(
+        hexString.length == 6 ? 'FF$hexString' : hexString,
+        radix: 16,
+      );
+
+      commonPrint
+          .log('Applying theme from flclashx-hex: #${hexString.toUpperCase()}'
+              '${variantName != null ? ', variant=$variantName' : ''}'
+              '${enablePureBlack ? ', pureBlack=true' : ''}');
+
+      _ref.read(themeSettingProvider.notifier).updateState((state) {
+        final updatedColors = [...state.primaryColors];
+        if (!updatedColors.contains(colorValue)) {
+          updatedColors.add(colorValue);
+        }
+
+        DynamicSchemeVariant? newVariant;
+        if (variantName != null && variantName.toLowerCase() != 'pureblack') {
+          try {
+            newVariant = DynamicSchemeVariant.values.firstWhere(
+              (v) => v.name.toLowerCase() == variantName.toLowerCase(),
+            );
+            commonPrint.log('Using scheme variant: ${newVariant.name}');
+          } catch (e) {
+            commonPrint.log(
+                'Unknown variant: $variantName, using current: ${state.schemeVariant.name}');
+          }
+        }
+
+        commonPrint.log(
+            'Theme updated: primaryColor=#${colorValue.toRadixString(16).toUpperCase()}'
+            '${enablePureBlack ? ', pureBlack=true' : ''}');
+
+        return state.copyWith(
+          primaryColor: colorValue,
+          primaryColors: updatedColors,
+          schemeVariant: newVariant ?? state.schemeVariant,
+          pureBlack: enablePureBlack,
+        );
+      });
+
+      savePreferencesDebounce();
+
+      commonPrint.log('Theme applied successfully');
+    } catch (e) {
+      commonPrint.log('Failed to parse hex color from header: $hexHeader - $e');
+    }
+  }
+
   Future<void> updateProfile(Profile profile) async {
-    final newProfile = await profile.update();
+    final prefs = await SharedPreferences.getInstance();
+    final shouldSend = prefs.getBool('sendDeviceHeaders') ?? true;
+    final newProfile = await profile.update(
+      shouldSendHeaders: shouldSend,
+    );
+
+    final headers = newProfile.providerHeaders;
+    if (headers.isNotEmpty) {
+      _applyAllHeaderSettings(newProfile, isNewProfile: false);
+    }
+
+    final showHwidLimit = headers['x-hwid-limit']?.toLowerCase() == 'true';
+    final announceText = headers['announce'];
+    if (showHwidLimit && announceText != null && announceText.isNotEmpty) {
+      _showHwidLimitNotice(announceText, headers['support-url']);
+    }
+
     _ref
         .read(profilesProvider.notifier)
         .setProfile(newProfile.copyWith(isUpdating: false));
+
     if (profile.id == _ref.read(currentProfileIdProvider)) {
       applyProfileDebounce(silence: true);
+      unawaited(_updateGeoFilesAfterProfileUpdate().catchError((e) {
+        commonPrint.log("Error updating geo files: $e");
+      }));
+    }
+
+    // Check subscription expiration and show notification if needed
+    unawaited(SubscriptionNotificationService.checkAndNotify(newProfile)
+        .catchError((e) {
+      commonPrint.log("Error checking subscription: $e");
+    }));
+  }
+
+  void _showHwidLimitNotice(String encodedText, String? supportUrl) {
+    String? announceText;
+    var textToDecode = encodedText;
+
+    if (encodedText.startsWith('base64:')) {
+      textToDecode = encodedText.substring(7);
+    }
+
+    try {
+      final normalized = base64.normalize(textToDecode);
+      announceText = utf8.decode(base64.decode(normalized));
+    } catch (e) {
+      announceText = encodedText;
+    }
+
+    if (announceText.isNotEmpty) {
+      final actions = <Widget>[];
+
+      if (supportUrl != null && supportUrl.isNotEmpty) {
+        actions.add(
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              globalState.openUrl(supportUrl);
+            },
+            child: Text(appLocalizations.support),
+          ),
+        );
+      }
+
+      actions.add(
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: Text(appLocalizations.confirm),
+        ),
+      );
+
+      globalState.showCommonDialog(
+        child: CommonDialog(
+          title: appLocalizations.tip,
+          actions: actions,
+          child: Container(
+            width: 300,
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                announceText,
+                style: const TextStyle(
+                  overflow: TextOverflow.visible,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<Map<String, String>?> _getRemoteFileMetadata(String url) async {
+    try {
+      final response = await http.head(Uri.parse(url)).timeout(
+            const Duration(seconds: 10),
+          );
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final metadata = <String, String>{};
+
+      final etag = response.headers['etag'];
+      if (etag != null && etag.isNotEmpty) {
+        metadata['etag'] = etag;
+      }
+
+      final lastModified = response.headers['last-modified'];
+      if (lastModified != null && lastModified.isNotEmpty) {
+        metadata['last-modified'] = lastModified;
+      }
+
+      final contentLength = response.headers['content-length'];
+      if (contentLength != null && contentLength.isNotEmpty) {
+        metadata['content-length'] = contentLength;
+      }
+
+      return metadata.isEmpty ? null : metadata;
+    } catch (e) {
+      commonPrint.log("Failed to get remote file metadata for $url: $e");
+      return null;
+    }
+  }
+
+  String _getMetadataKey(String profileId, String key) =>
+      'geo_metadata_${profileId}_$key';
+
+  Future<Map<String, String>?> _getSavedMetadata(
+      String profileId, String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storageKey = _getMetadataKey(profileId, key);
+      final jsonString = prefs.getString(storageKey);
+      if (jsonString == null) return null;
+      return Map<String, String>.from(json.decode(jsonString));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _saveMetadata(
+      String profileId, String key, Map<String, String> metadata) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storageKey = _getMetadataKey(profileId, key);
+      await prefs.setString(storageKey, json.encode(metadata));
+    } catch (e) {
+      commonPrint.log("Failed to save metadata for $key: $e");
+    }
+  }
+
+  bool _hasMetadataChanged(
+      Map<String, String>? oldMeta, Map<String, String>? newMeta) {
+    if (oldMeta == null || newMeta == null) return true;
+
+    if (newMeta['etag'] != null && oldMeta['etag'] != null) {
+      return newMeta['etag'] != oldMeta['etag'];
+    }
+
+    if (newMeta['last-modified'] != null && oldMeta['last-modified'] != null) {
+      return newMeta['last-modified'] != oldMeta['last-modified'];
+    }
+
+    if (newMeta['content-length'] != null &&
+        oldMeta['content-length'] != null) {
+      return newMeta['content-length'] != oldMeta['content-length'];
+    }
+
+    return true;
+  }
+
+  Future<void> _updateGeoFilesAfterProfileUpdate(
+      {bool forceUpdate = false}) async {
+    try {
+      final currentProfileId = _ref.read(currentProfileIdProvider);
+      if (currentProfileId == null) return;
+
+      final profileConfig =
+          await globalState.getProfileConfig(currentProfileId);
+
+      final geodataMode = profileConfig["geodata-mode"];
+      if (geodataMode != true) {
+        commonPrint.log(
+            "Geodata updates are disabled by profile (geodata-mode != true)");
+        return;
+      }
+
+      final geoXUrl = profileConfig["geox-url"];
+
+      if (geoXUrl == null || geoXUrl is! Map) {
+        commonPrint.log("No geox-url found in profile config");
+        return;
+      }
+
+      final geoFiles = [
+        {'type': 'GeoIp', 'name': geoIpFileName, 'key': 'geoip'},
+        {'type': 'MMDB', 'name': mmdbFileName, 'key': 'mmdb'},
+        {'type': 'GeoSite', 'name': geoSiteFileName, 'key': 'geosite'},
+        {'type': 'ASN', 'name': asnFileName, 'key': 'asn'},
+      ];
+
+      // Counters for logging purposes (values used in log messages via increment)
+      // ignore: unused_local_variable
+      var updatedCount = 0;
+      // ignore: unused_local_variable
+      var skippedCount = 0;
+
+      for (final geoFile in geoFiles) {
+        final geoType = geoFile['type']!;
+        final fileName = geoFile['name']!;
+        final key = geoFile['key']!;
+
+        final url = geoXUrl[key];
+        if (url == null || url is! String || url.isEmpty) {
+          commonPrint.log("No URL for $fileName, skipping");
+          continue;
+        }
+
+        try {
+          final remoteMetadata = await _getRemoteFileMetadata(url);
+          if (remoteMetadata == null) {
+            commonPrint.log("Failed to get metadata for $fileName from $url");
+            continue;
+          }
+
+          final savedMetadata = await _getSavedMetadata(currentProfileId, key);
+
+          if (!forceUpdate &&
+              !_hasMetadataChanged(savedMetadata, remoteMetadata)) {
+            commonPrint.log(
+                "$fileName is up to date for profile $currentProfileId, skipping download");
+            skippedCount++;
+            continue;
+          }
+
+          final reason = forceUpdate ? "force update" : "metadata changed";
+          commonPrint.log(
+              "$fileName needs update for profile $currentProfileId ($reason), downloading from $url...");
+          final result = await clashCore.updateGeoData(
+            UpdateGeoDataParams(geoType: geoType, geoName: fileName),
+          );
+
+          if (result.isNotEmpty) {
+            commonPrint.log("Failed to update $fileName: $result");
+            continue;
+          }
+
+          await _saveMetadata(currentProfileId, key, remoteMetadata);
+          commonPrint.log(
+              "$fileName was successfully updated for profile $currentProfileId from $url");
+          updatedCount++;
+        } catch (e) {
+          commonPrint.log("Failed to update $fileName: $e");
+        }
+      }
+    } catch (e) {
+      commonPrint.log("Failed to update geo files after profile update: $e");
     }
   }
 
@@ -343,102 +658,87 @@ class AppController {
 
   void updateOrAddHotKeyAction(HotKeyAction hotKeyAction) {
     final hotKeyActions = _ref.read(hotKeyActionsProvider);
-    final index = hotKeyActions.indexWhere(
-      (item) => item.action == hotKeyAction.action,
-    );
-
-    final newList = List.of(hotKeyActions);
+    final index =
+        hotKeyActions.indexWhere((item) => item.action == hotKeyAction.action);
     if (index == -1) {
-      newList.add(hotKeyAction);
+      _ref.read(hotKeyActionsProvider.notifier).value = List.from(hotKeyActions)
+        ..add(hotKeyAction);
     } else {
-      newList[index] = hotKeyAction;
+      _ref.read(hotKeyActionsProvider.notifier).value = List.from(hotKeyActions)
+        ..[index] = hotKeyAction;
     }
 
-    _ref.read(hotKeyActionsProvider.notifier).value = newList;
+    _ref.read(hotKeyActionsProvider.notifier).value = index == -1
+        ? (List.from(hotKeyActions)..add(hotKeyAction))
+        : (List.from(hotKeyActions)..[index] = hotKeyAction);
   }
 
-  List<Group> getCurrentGroups() {
-    return _ref.read(currentGroupsStateProvider.select((state) => state.value));
-  }
+  List<Group> getCurrentGroups() =>
+      _ref.read(currentGroupsStateProvider.select((state) => state.value));
 
-  String getRealTestUrl(String? url) {
-    return _ref.read(getRealTestUrlProvider(url));
-  }
+  String getRealTestUrl(String? url) => _ref.read(getRealTestUrlProvider(url));
 
-  int getProxiesColumns() {
-    return _ref.read(getProxiesColumnsProvider);
-  }
+  int getProxiesColumns() => _ref.read(getProxiesColumnsProvider);
 
-  dynamic addSortNum() {
-    return _ref.read(sortNumProvider.notifier).add();
-  }
+  dynamic addSortNum() => _ref.read(sortNumProvider.notifier).add();
 
   String? getCurrentGroupName() {
-    final currentGroupName = _ref.read(
-      currentProfileProvider.select((state) => state?.currentGroupName),
-    );
+    final currentGroupName = _ref.read(currentProfileProvider.select(
+      (state) => state?.currentGroupName,
+    ));
     return currentGroupName;
   }
 
-  ProxyCardState getProxyCardState(String proxyName) {
-    return _ref.read(getProxyCardStateProvider(proxyName));
-  }
+  ProxyCardState getProxyCardState(proxyName) =>
+      _ref.read(getProxyCardStateProvider(proxyName));
 
-  String? getSelectedProxyName(String groupName) {
-    return _ref.read(getSelectedProxyNameProvider(groupName));
-  }
+  String? getSelectedProxyName(groupName) =>
+      _ref.read(getSelectedProxyNameProvider(groupName));
 
   void updateCurrentGroupName(String groupName) {
     final profile = _ref.read(currentProfileProvider);
     if (profile == null || profile.currentGroupName == groupName) {
       return;
     }
-    setProfile(profile.copyWith(currentGroupName: groupName));
+    setProfile(
+      profile.copyWith(currentGroupName: groupName),
+    );
   }
 
   Future<void> updateClashConfig() async {
-    await safeRun(() async {
+    final commonScaffoldState = globalState.homeScaffoldKey.currentState;
+    if (commonScaffoldState?.mounted != true) return;
+    await commonScaffoldState?.loadingRun(() async {
       await _updateClashConfig();
-    }, needLoading: true);
-  }
-
-  Future<bool?> _prepareTun(bool targetTun) async {
-    final res = await _requestAdmin(targetTun);
-    if (res.needRestart) {
-      await restartCore();
-    } else if (res.isError) {
-      return null;
-    }
-    return _ref.read(realTunEnableProvider);
+    });
   }
 
   Future<void> _updateClashConfig() async {
     final updateParams = _ref.read(updateParamsProvider);
-    final realTunEnable = await _prepareTun(updateParams.tun.enable);
-    if (realTunEnable == null) return;
-
+    final res = await _requestAdmin(updateParams.tun.enable);
+    if (res.isError) {
+      return;
+    }
+    final realTunEnable = _ref.read(realTunEnableProvider);
     final message = await clashCore.updateConfig(
-      updateParams.copyWith.tun(enable: realTunEnable),
+      updateParams.copyWith.tun(
+        enable: realTunEnable,
+      ),
     );
     if (message.isNotEmpty) throw message;
   }
 
   Future<Result<bool>> _requestAdmin(bool enableTun) async {
-    if (system.isWindows && kDebugMode) {
-      return Result.success(false);
-    }
     final realTunEnable = _ref.read(realTunEnableProvider);
     if (enableTun != realTunEnable && realTunEnable == false) {
       final code = await system.authorizeCore();
       switch (code) {
         case AuthorizeCode.success:
-          return Result.success(true, needRestart: true);
+          await restartCore();
+          return Result.error("");
         case AuthorizeCode.none:
           break;
         case AuthorizeCode.error:
-          if (system.isWindows) {
-            globalState.showNotifier(appLocalizations.tunEnableRequireAdmin);
-          }
           enableTun = false;
           break;
       }
@@ -448,13 +748,71 @@ class AppController {
   }
 
   Future<void> setupClashConfig() async {
-    await safeRun(() async {
-      await _setupCoreConfig();
-    }, needLoading: true);
+    final commonScaffoldState = globalState.homeScaffoldKey.currentState;
+    if (commonScaffoldState?.mounted != true) return;
+    await commonScaffoldState?.loadingRun(() async {
+      await _setupClashConfig();
+    });
+  }
+
+  Future<void> _setupClashConfig() async {
+    await _ref.read(currentProfileProvider)?.checkAndUpdate();
+    var patchConfig = _ref.read(patchClashConfigProvider);
+
+    // Sync network settings from provider config if not overriding
+    final appSetting = _ref.read(appSettingProvider);
+    if (!appSetting.overrideNetworkSettings) {
+      final syncedConfig =
+          await globalState.syncNetworkSettingsFromProvider(patchConfig);
+      // Always update provider when using provider settings to ensure UI reflects config
+      _ref
+          .read(patchClashConfigProvider.notifier)
+          .updateState((state) => syncedConfig);
+      patchConfig = syncedConfig;
+    }
+
+    // flclashx-androidsecure header: on Android, when the current profile
+    // declares "androidsecure: true", force mixedPort=0 on the Dart-side
+    // ClashConfig so that all downstream providers (coreStateProvider,
+    // proxyStateProvider, http.handleFindProxy) observe the disabled inbound
+    // and behave consistently with patchRawConfig's forced override. Applied
+    // after syncFromProvider so it overrides both user and provider values.
+    if (Platform.isAndroid) {
+      final profile = _ref.read(currentProfileProvider);
+      final secure = profile?.providerHeaders['flclashx-androidsecure']
+              ?.trim()
+              .toLowerCase() ==
+          'true';
+      if (secure && patchConfig.mixedPort != 0) {
+        patchConfig = patchConfig.copyWith(mixedPort: 0);
+        _ref
+            .read(patchClashConfigProvider.notifier)
+            .updateState((state) => state.copyWith(mixedPort: 0));
+      }
+    }
+
+    final res = await _requestAdmin(patchConfig.tun.enable);
+    if (res.isError) {
+      return;
+    }
+    final realTunEnable = _ref.read(realTunEnableProvider);
+    final realPatchConfig = patchConfig.copyWith.tun(enable: realTunEnable);
+    final params = await globalState.getSetupParams(
+      pathConfig: realPatchConfig,
+    );
+    final message = await clashCore.setupConfig(params);
+    lastProfileModified = await _ref.read(
+      currentProfileProvider.select(
+        (state) => state?.profileLastModified,
+      ),
+    );
+    if (message.isNotEmpty) {
+      throw message;
+    }
   }
 
   Future _applyProfile() async {
-    await clashCore.requestGc();
+    clashCore.requestGc();
     await setupClashConfig();
     await updateGroups();
     await updateProviders();
@@ -464,31 +822,55 @@ class AppController {
     if (silence) {
       await _applyProfile();
     } else {
-      await safeRun(() async {
+      final commonScaffoldState = globalState.homeScaffoldKey.currentState;
+      if (commonScaffoldState?.mounted != true) return;
+      await commonScaffoldState?.loadingRun(() async {
         await _applyProfile();
-      }, needLoading: true);
+      });
     }
     addCheckIpNumDebounce();
   }
 
   void handleChangeProfile() {
     _ref.read(delayDataSourceProvider.notifier).value = {};
+
+    final currentProfileId = _ref.read(currentProfileIdProvider);
+    if (currentProfileId != null) {
+      final profiles = _ref.read(profilesProvider);
+      var currentProfile = profiles.firstWhere(
+        (p) => p.id == currentProfileId,
+        orElse: () => profiles.first,
+      );
+
+      if (currentProfile.providerHeaders.isNotEmpty) {
+        _applyAllHeaderSettings(currentProfile, isNewProfile: false);
+      }
+    }
+
     applyProfile();
-    _ref.read(logsProvider.notifier).value = FixedList(maxLength);
-    _ref.read(requestsProvider.notifier).value = FixedList(maxLength);
-    globalState.computeHeightMapCache = {};
+    _ref.read(logsProvider.notifier).value = FixedList(500);
+    _ref.read(requestsProvider.notifier).value = FixedList(500);
+    globalState.cacheHeightMap = {};
+    globalState.cacheScrollPosition = {};
+
+    if (currentProfileId != null) {
+      _updateGeoFilesAfterProfileUpdate(forceUpdate: true).catchError((e) {
+        commonPrint.log("Error updating geo files on profile change: $e");
+      });
+    }
   }
 
-  void updateBrightness() {
-    _ref.read(systemBrightnessProvider.notifier).value =
-        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+  void updateBrightness(Brightness brightness) {
+    _ref.read(appBrightnessProvider.notifier).value = brightness;
   }
 
   Future<void> autoUpdateProfiles() async {
     for (final profile in _ref.read(profilesProvider)) {
       if (!profile.autoUpdate) continue;
       final isNotNeedUpdate = profile.lastUpdateDate
-          ?.add(profile.autoUpdateDuration)
+          ?.add(
+            profile.autoUpdateDuration,
+          )
           .isBeforeNow;
       if (isNotNeedUpdate == false || profile.type == ProfileType.file) {
         continue;
@@ -501,84 +883,69 @@ class AppController {
     }
   }
 
-  Future<void> checkAndUpdateMissedProfiles() async {
-    final now = DateTime.now();
-    final profilesToUpdate = <Profile>[];
-    for (final profile in _ref.read(profilesProvider)) {
-      if (!profile.autoUpdate) continue;
-      if (profile.type == ProfileType.file) continue;
-      if (profile.isUpdating) continue;
-      final lastUpdate = profile.lastUpdateDate;
-      if (lastUpdate == null) continue;
-      final expectedNextUpdate = lastUpdate.add(profile.autoUpdateDuration);
-      final isOverdue = now.difference(expectedNextUpdate) > const Duration(minutes: 1);
-      if (isOverdue) {
-        profilesToUpdate.add(profile);
+  /// Updates subscription info for the current profile on app startup.
+  /// This ensures the subscription info is always up-to-date when the app launches.
+  Future<void> _updateCurrentProfileSubscription() async {
+    try {
+      final currentProfileId = _ref.read(currentProfileIdProvider);
+      commonPrint.log(
+          "_updateCurrentProfileSubscription: currentProfileId = $currentProfileId");
+      if (currentProfileId == null) {
+        commonPrint.log(
+            "_updateCurrentProfileSubscription: No current profile selected, skipping");
+        return;
       }
-    }
-    if (profilesToUpdate.isEmpty) return;
-    for (final profile in profilesToUpdate) {
-      try {
-        commonPrint.log('[MissedUpdate] Updating profile: ${profile.label ?? profile.id}');
-        await updateProfile(profile);
-      } catch (e) {
-        commonPrint.log('[MissedUpdate] Failed to update ${profile.id}: $e');
+
+      final profiles = _ref.read(profilesProvider);
+      commonPrint.log(
+          "_updateCurrentProfileSubscription: profiles count = ${profiles.length}");
+
+      final currentProfile =
+          profiles.where((p) => p.id == currentProfileId).firstOrNull;
+      if (currentProfile == null) {
+        commonPrint.log(
+            "_updateCurrentProfileSubscription: Profile not found in list, skipping");
+        return;
       }
-      if (profilesToUpdate.length > 1) {
-        await Future.delayed(const Duration(seconds: 2));
+
+      if (currentProfile.type == ProfileType.file) {
+        commonPrint.log(
+            "_updateCurrentProfileSubscription: Profile is file type, skipping");
+        return;
       }
+
+      commonPrint.log(
+          "Updating subscription info for current profile '${currentProfile.label}' on startup...");
+      if (currentProfile.autoUpdate) {
+        await updateProfile(currentProfile);
+        commonPrint.log("Subscription info updated successfully");
+      } else {
+        commonPrint.log(
+            "Auto-update disabled for current profile, skipping startup update");
+      }
+    } catch (e, stackTrace) {
+      commonPrint.log("Failed to update subscription info on startup: $e");
+      commonPrint.log("Stack trace: $stackTrace");
     }
   }
 
   Future<void> updateGroups() async {
-    if (_isUpdatingGroups) {
-      commonPrint.log('updateGroups already in progress, skipping');
-      return;
-    }
-    _isUpdatingGroups = true;
-
     try {
-      final currentGroups = _ref.read(groupsProvider);
-      final isInitialDesktopLoad = system.isDesktop && currentGroups.isEmpty;
-      final maxAttempts = isInitialDesktopLoad ? 6 : 4;
-
       final newGroups = await retry(
-        task: clashCore.getProxiesGroups,
+        task: () async => clashCore.getProxiesGroups(),
         retryIf: (res) => res.isEmpty,
-        maxAttempts: maxAttempts,
       );
-      _ref.read(groupsProvider.notifier).value = newGroups;
-      _updateGroupsRetryCount = 0;
-      return;
+
+      if (newGroups.isNotEmpty) {
+        _ref.read(groupsProvider.notifier).value = newGroups;
+        _ref.read(versionProvider.notifier).value =
+            _ref.read(versionProvider) + 1;
+      } else {
+        commonPrint
+            .log("updateGroups: received empty groups, keeping old state");
+      }
     } catch (e) {
-      final currentGroups = _ref.read(groupsProvider);
-      final isInitialDesktopLoad = system.isDesktop && currentGroups.isEmpty;
-      final maxRetryRounds = isInitialDesktopLoad ? 8 : 4;
-      final retryDelay = isInitialDesktopLoad
-          ? const Duration(seconds: 1)
-          : const Duration(seconds: 2);
-      if (currentGroups.isNotEmpty) {
-        commonPrint.log('updateGroups error, keeping existing groups: $e');
-        return;
-      }
-
-      if (_updateGroupsRetryCount >= maxRetryRounds) {
-        commonPrint.log(
-          'updateGroups max retries ($maxRetryRounds) reached, giving up',
-        );
-        _updateGroupsRetryCount = 0;
-        return;
-      }
-      _updateGroupsRetryCount++;
-
-      commonPrint.log(
-        'updateGroups initial load failed ($_updateGroupsRetryCount/$maxRetryRounds), scheduling retry in ${retryDelay.inSeconds}s: $e',
-      );
-      Future.delayed(retryDelay, () {
-        updateGroups();
-      });
-    } finally {
-      _isUpdatingGroups = false;
+      commonPrint.log("updateGroups error: $e, keeping old groups");
     }
   }
 
@@ -592,6 +959,7 @@ class AppController {
   }
 
   Future<void> savePreferences() async {
+    commonPrint.log("save preferences");
     await preferences.saveConfig(globalState.config);
   }
 
@@ -600,22 +968,29 @@ class AppController {
     required String proxyName,
   }) async {
     await clashCore.changeProxy(
-      ChangeProxyParams(groupName: groupName, proxyName: proxyName),
+      ChangeProxyParams(
+        groupName: groupName,
+        proxyName: proxyName,
+      ),
     );
     if (_ref.read(appSettingProvider).closeConnections) {
       clashCore.closeConnections();
     }
-    addCheckIp();
+    addCheckIpNumDebounce();
   }
 
   Future<void> handleBackOrExit() async {
     if (_ref.read(backBlockProvider)) {
       return;
     }
-    if (system.isDesktop) {
-      await savePreferences();
+    if (_ref.read(appSettingProvider).minimizeOnExit) {
+      if (system.isDesktop) {
+        savePreferencesDebounce();
+      }
+      await system.back();
+    } else {
+      await handleExit();
     }
-    await system.back();
   }
 
   void backBlock() {
@@ -627,68 +1002,120 @@ class AppController {
   }
 
   Future<void> handleExit() async {
-    if (_exitLock != null) {
-      return _exitLock!.future;
-    }
-
-    final exitLock = Completer<void>();
-    _exitLock = exitLock;
-    globalState.isExiting = true;
-
+    _profileUpdateTimer?.cancel();
+    Future.delayed(commonDuration, system.exit);
     try {
-      stopWakelockAutoRecovery();
-      await globalState.handleBackground();
       await savePreferences();
-      if (macOS != null) {
-        await macOS!.updateDns(true);
-      }
-      if (proxy != null) {
-        await proxy!.stopProxy();
-      }
+      await system.setMacOSDns(true);
+      await proxy?.stopProxy();
       await clashCore.shutdown();
-      if (clashService != null) {
-        await clashService!.destroy();
-      }
-    } catch (e) {
-      commonPrint.log('handleExit error: $e');
+      await clashService?.destroy();
     } finally {
-      if (!exitLock.isCompleted) {
-        exitLock.complete();
-      }
       system.exit();
     }
   }
 
+  Future<void> handleRestart() async {
+    commonPrint.log("Starting application restart...");
+
+    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+      final executablePath = Platform.resolvedExecutable;
+      commonPrint.log("Launching new process: $executablePath");
+
+      try {
+        await Process.start(
+          executablePath,
+          [],
+          mode: ProcessStartMode.detached,
+        );
+        commonPrint.log("New process started, exiting old process...");
+      } catch (e) {
+        commonPrint.log("Failed to start new process: $e");
+        return;
+      }
+    }
+
+    system.exit();
+  }
+
   Future handleClear() async {
-    await preferences.clearPreferences();
-    commonPrint.log('clear preferences');
-    globalState.config = Config(themeProps: defaultThemeProps);
+    try {
+      // Stop proxy/VPN first
+      await globalState.handleStop();
+      commonPrint.log("stopped proxy/VPN");
+
+      // Stop core
+      await clashCore.shutdown();
+      commonPrint.log("shutdown core");
+
+      // Wait a bit for all file handles to close
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Clear preferences
+      await preferences.clearPreferences();
+      commonPrint.log("cleared preferences");
+
+      // Get paths
+      final homePath = await appPath.homeDirPath;
+      final profilesPath = await appPath.profilesPath;
+
+      // Delete profiles directory
+      final profilesDir = Directory(profilesPath);
+      if (await profilesDir.exists()) {
+        try {
+          await profilesDir.delete(recursive: true);
+          commonPrint.log("deleted profiles directory");
+        } catch (e) {
+          commonPrint.log("failed to delete profiles directory: $e");
+        }
+      }
+
+      // Delete cache and temporary files
+      final filesToDelete = [
+        'cache.db',
+        'libCachedImageData.json',
+        'FlClashX.lock',
+      ];
+
+      for (final fileName in filesToDelete) {
+        final file = File(join(homePath, fileName));
+        if (await file.exists()) {
+          try {
+            await file.delete();
+            commonPrint.log("deleted $fileName");
+          } catch (e) {
+            commonPrint.log("failed to delete $fileName: $e");
+          }
+        }
+      }
+
+      // Reset config
+      globalState.config = const Config(
+        themeProps: defaultThemeProps,
+      );
+
+      commonPrint.log("handleClear completed");
+
+      // Close file logger to release file handles (MUST be last step)
+      await fileLogger.dispose();
+    } catch (e) {
+      commonPrint.log("handleClear error: $e");
+      await fileLogger.dispose();
+      rethrow;
+    }
   }
 
   Future<void> autoCheckUpdate() async {
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-    final lastCheckTime = prefs?.getInt('last_check_update_time') ?? 0;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final isAutoCheck = _ref.read(appSettingProvider).autoCheckUpdate;
-
-    final forceCheck =
-        (now - lastCheckTime) > const Duration(days: 28).inMilliseconds;
-
-    if (!isAutoCheck && !forceCheck) return;
-
+    if (!_ref.read(appSettingProvider).autoCheckUpdate) return;
     final res = await request.checkForUpdate();
-    if (res != null) {
-      checkUpdateResultHandle(data: res);
-    }
-
-    await prefs?.setInt('last_check_update_time', now);
+    checkUpdateResultHandle(data: res);
   }
 
   Future<void> checkUpdateResultHandle({
     Map<String, dynamic>? data,
     bool handleError = false,
   }) async {
-    if (globalState.isPre && !handleError) {
+    if (globalState.isPre) {
       return;
     }
     if (data != null) {
@@ -699,12 +1126,18 @@ class AppController {
       final res = await globalState.showMessage(
         title: appLocalizations.discoverNewVersion,
         message: TextSpan(
-          text: '$tagName \n',
+          text: "$tagName \n",
           style: textTheme.headlineSmall,
           children: [
-            TextSpan(text: '\n', style: textTheme.bodyMedium),
+            TextSpan(
+              text: "\n",
+              style: textTheme.bodyMedium,
+            ),
             for (final submit in submits)
-              TextSpan(text: '- $submit \n', style: textTheme.bodyMedium),
+              TextSpan(
+                text: "- $submit \n",
+                style: textTheme.bodyMedium,
+              ),
           ],
         ),
         confirmText: appLocalizations.goDownload,
@@ -712,14 +1145,15 @@ class AppController {
       if (res != true) {
         return;
       }
-      launchUrl(
-        Uri.parse('https://github.com/$repository/releases/latest'),
-        mode: LaunchMode.externalApplication,
-      );
+      unawaited(launchUrl(
+        Uri.parse("https://github.com/$repository/releases/latest"),
+      ));
     } else if (handleError) {
       globalState.showMessage(
         title: appLocalizations.checkUpdate,
-        message: TextSpan(text: appLocalizations.checkUpdateError),
+        message: TextSpan(
+          text: appLocalizations.checkUpdateError,
+        ),
       );
     }
   }
@@ -746,198 +1180,52 @@ class AppController {
     final isInit = await clashCore.isInit;
     if (!isInit) {
       await clashCore.init();
-      await clashCore.setState(globalState.getCoreState());
+      await clashCore.setState(
+        globalState.getCoreState(),
+      );
     }
-  }
-
-  void startWakelockAutoRecovery() {
-    _wakelockSyncTimer?.cancel();
-    _wakelockSyncTimer = Timer.periodic(const Duration(seconds: 168), (
-      _,
-    ) async {
-      try {
-        final userEnabled = _ref.read(wakelockStateProvider);
-
-        if (!userEnabled) {
-          stopWakelockAutoRecovery();
-          return;
-        }
-
-        await syncWakelockIfNeeded();
-      } catch (_) {}
-    });
-  }
-
-  void stopWakelockAutoRecovery() {
-    _wakelockSyncTimer?.cancel();
-    _wakelockSyncTimer = null;
-  }
-
-  Future<void> syncWakelockIfNeeded() async {
-    final userEnabled = _ref.read(wakelockStateProvider);
-    if (!userEnabled) {
-      stopWakelockAutoRecovery();
-      return;
-    }
-    final actualState = await WakelockPlus.enabled;
-    if (actualState) {
-      return;
-    }
-    await WakelockPlus.enable();
-  }
-
-  Future<void> _initHighRefreshRateDefault() async {
-    try {
-      final androidVersion = await system.version;
-      final currentSetting = _ref.read(appSettingProvider);
-
-      final bool shouldEnableHighRefreshRate =
-          androidVersion >= 31; // Android 12+
-
-      if (currentSetting.enableHighRefreshRate != shouldEnableHighRefreshRate) {
-        _ref
-            .read(appSettingProvider.notifier)
-            .updateState(
-              (state) => state.copyWith(
-                enableHighRefreshRate: shouldEnableHighRefreshRate,
-              ),
-            );
-      }
-    } catch (e) {
-      commonPrint.log('Failed to initialize high refresh rate default: $e');
-    }
+    await applyProfile();
   }
 
   Future<void> init() async {
-    debugPrint('=== init: start ===');
     FlutterError.onError = (details) {
-      debugPrint('=== FlutterError: ${details.exception} ===');
-      if (kDebugMode) {
-        commonPrint.log(details.stack.toString());
-      }
+      commonPrint.log(details.stack.toString());
     };
-
-    vpn_service.service?.addNativeEventCallback((method, arguments) async {
-      if (method == 'vpnStartFailed') {
-        globalState.showNotifier('Failed, Please try again later');
-        await updateStatus(false);
-      }
-    });
-
-    if (system.isAndroid) {
-      try {
-        await _initHighRefreshRateDefault().timeout(const Duration(seconds: 2));
-      } catch (_) {}
-    }
-
-    try {
-      final wakelockEnabled = await WakelockPlus.enabled.timeout(const Duration(seconds: 2));
-      debugPrint('=== init: wakelock = $wakelockEnabled ===');
-      _ref.read(wakelockStateProvider.notifier).state = wakelockEnabled;
-      if (wakelockEnabled) {
-        startWakelockAutoRecovery();
-      }
-    } catch (e) {
-      debugPrint('=== init: wakelock error=$e ===');
-    }
-
-    debugPrint('=== init: updateTray ===');
-    await updateTray(true);
-    debugPrint('=== init: updateTray done ===');
-
-    debugPrint('=== init: _initCore ===');
+    updateTray(true);
     await _initCore();
-    debugPrint('=== init: _initCore done ===');
-    try {
-      debugPrint('=== init: _initStatus ===');
-      await _initStatus();
-      debugPrint('=== init: _initStatus done ===');
-    } catch (e) {
-      commonPrint.log('_initStatus failed, falling back to basic startup: $e');
-      try {
-        await applyProfile(silence: true);
-      } catch (e2) {
-        commonPrint.log('Fallback applyProfile also failed: $e2');
+    await _initStatus();
+    autoLaunch?.updateStatus(
+      _ref.read(appSettingProvider).autoLaunch,
+    );
+    // Delay subscription update to ensure network is ready after app initialization
+    Future.delayed(
+        const Duration(seconds: 1), _updateCurrentProfileSubscription);
+    autoUpdateProfiles();
+    autoCheckUpdate();
+    if (!Platform.isMacOS) {
+      if (!_ref.read(appSettingProvider).silentLaunch) {
+        window?.show();
+      } else {
+        window?.hide();
       }
     }
-    debugPrint('=== init: done ===');
+    await _handlePreference();
+    await _handlerDisclaimer();
+    _ref.read(initProvider.notifier).value = true;
   }
 
   Future<void> _initStatus() async {
-    if (system.isAndroid) {
+    if (Platform.isAndroid) {
       await globalState.updateStartTime();
-      if (globalState.isStart && _ref.read(runTimeProvider) == null) {
-        _ref.read(runTimeProvider.notifier).value = 0;
-      }
-    } else if (system.isDesktop) {
-      await syncDesktopRuntimeState();
     }
+    final status = globalState.isStart == true
+        ? true
+        : _ref.read(appSettingProvider).autoRun;
 
-    final needRecovery = await _detectAbnormalExit();
-
-    if (needRecovery) {
-      commonPrint.log('Abnormal exit detected');
-      if (system.isAndroid) {
-        try {
-          await applyProfile(silence: true);
-        } catch (e) {
-          commonPrint.log('Recovery failed: $e');
-        }
-      }
-    }
-    final shouldStart =
-        globalState.isStart || _ref.read(appSettingProvider).autoRun;
-
-    if (shouldStart) {
-      try {
-        await updateStatus(true);
-      } catch (e) {
-        commonPrint.log('Auto start failed: $e');
-        await applyProfile();
-        addCheckIpNumDebounce();
-      }
-    } else {
-      await applyProfile();
+    await updateStatus(status);
+    if (!status) {
       addCheckIpNumDebounce();
     }
-  }
-
-  Future<void> syncDesktopRuntimeState({
-    bool preferCurrentState = false,
-  }) async {
-    if (!system.isDesktop) return;
-    if (!preferCurrentState || !globalState.isStart) {
-      await globalState.updateStartTime();
-    }
-
-    if (globalState.isStart) {
-      if (_ref.read(runTimeProvider) == null) {
-        _ref.read(runTimeProvider.notifier).value = 0;
-      }
-      await globalState.startUpdateTasks([updateTraffic]);
-      return;
-    }
-
-    if (_ref.read(runTimeProvider) != null) {
-      _ref.read(runTimeProvider.notifier).value = null;
-    }
-    globalState.stopUpdateTasks();
-  }
-
-  Future<bool> _detectAbnormalExit() async {
-    final prefs = await preferences.sharedPreferencesCompleter.future;
-
-    if (system.isAndroid) {
-      final isVpnRunningFlag = prefs?.getBool('is_vpn_running') ?? false;
-      return !globalState.isStart && isVpnRunningFlag;
-    }
-
-    if (system.isDesktop) {
-      final wasTunRunning = prefs?.getBool('is_tun_running') ?? false;
-      return !globalState.isStart && wasTunRunning;
-    }
-
-    return false;
   }
 
   void setDelay(Delay delay) {
@@ -945,10 +1233,6 @@ class AppController {
   }
 
   void toPage(PageLabel pageLabel) {
-    final context = globalState.navigatorKey.currentState?.context;
-    if (context != null && context.mounted) {
-      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
-    }
     _ref.read(currentPageLabelProvider.notifier).value = pageLabel;
   }
 
@@ -957,63 +1241,61 @@ class AppController {
   }
 
   void initLink() {
-    linkManager.initAppLinksListen((url) async {
-      final res = await globalState.showMessage(
-        title: '${appLocalizations.add}${appLocalizations.profile}',
-        message: TextSpan(
-          children: [
-            TextSpan(text: appLocalizations.doYouWantToPass),
-            TextSpan(
-              text: ' $url ',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                decoration: TextDecoration.underline,
-                decorationColor: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            TextSpan(
-              text: '${appLocalizations.create}${appLocalizations.profile}',
-            ),
-          ],
-        ),
-      );
-
-      if (res != true) {
-        return;
-      }
-      addProfileFormURL(url);
-    });
-  }
-
-  Future<bool> showDisclaimer() async {
-    return await globalState.showCommonDialog<bool>(
-          dismissible: false,
-          child: CommonDialog(
-            title: appLocalizations.disclaimer,
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop<bool>(false);
-                },
-                child: Text(appLocalizations.exit),
-              ),
-              TextButton(
-                onPressed: () {
-                  _ref
-                      .read(appSettingProvider.notifier)
-                      .updateState(
-                        (state) => state.copyWith(disclaimerAccepted: true),
-                      );
-                  Navigator.of(context).pop<bool>(true);
-                },
-                child: Text(appLocalizations.agree),
+    linkManager.initAppLinksListen(
+      (url) async {
+        final res = await globalState.showMessage(
+          title: "${appLocalizations.add} ${appLocalizations.profile}",
+          message: TextSpan(
+            children: [
+              TextSpan(text: appLocalizations.doYouWantToPass),
+              TextSpan(
+                text: " $url",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ],
-            child: SelectableText(appLocalizations.disclaimerDesc),
           ),
-        ) ??
-        false;
+        );
+
+        if (res != true) {
+          return;
+        }
+        addProfileFormURL(url);
+      },
+    );
   }
+
+  Future<bool> showDisclaimer() async =>
+      await globalState.showCommonDialog<bool>(
+        dismissible: false,
+        child: CommonDialog(
+          title: appLocalizations.disclaimer,
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop<bool>(false);
+              },
+              child: Text(appLocalizations.exit),
+            ),
+            TextButton(
+              onPressed: () {
+                _ref.read(appSettingProvider.notifier).updateState(
+                      (state) => state.copyWith(disclaimerAccepted: true),
+                    );
+                Navigator.of(context).pop<bool>(true);
+              },
+              child: Text(appLocalizations.agree),
+            )
+          ],
+          child: SelectableText(
+            appLocalizations.disclaimerDesc,
+          ),
+        ),
+      ) ??
+      false;
 
   Future<void> _handlerDisclaimer() async {
     if (_ref.read(appSettingProvider).disclaimerAccepted) {
@@ -1030,37 +1312,56 @@ class AppController {
     if (globalState.navigatorKey.currentState?.canPop() ?? false) {
       globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
     }
-    toProfiles();
+    toPage(PageLabel.dashboard);
+    final commonScaffoldState = globalState.homeScaffoldKey.currentState;
+    if (commonScaffoldState?.mounted != true) return;
 
-    final profile = await safeRun(
-      () async {
-        return await Profile.normal(url: url).update();
-      },
-      needLoading: true,
-      title: '${appLocalizations.add}${appLocalizations.profile}',
-    );
-    if (profile != null) {
-      await addProfile(profile);
+    try {
+      final profile = await commonScaffoldState?.loadingRun<Profile>(
+        () async {
+          final prefs = await SharedPreferences.getInstance();
+          final shouldSend = prefs.getBool('sendDeviceHeaders') ?? true;
+          return Profile.normal(url: url).update(shouldSendHeaders: shouldSend);
+        },
+        title: "${appLocalizations.add}${appLocalizations.profile}",
+      );
+
+      if (profile != null) {
+        _applyAllHeaderSettings(profile, isNewProfile: true);
+
+        final headers = profile.providerHeaders;
+        final showHwidLimit = headers['x-hwid-limit']?.toLowerCase() == 'true';
+        final announceText = headers['announce'];
+        if (showHwidLimit && announceText != null && announceText.isNotEmpty) {
+          _showHwidLimitNotice(announceText, headers['support-url']);
+        }
+
+        await addProfile(profile);
+      }
+    } catch (err) {
+      commonPrint.log('Add Profile Failed: $err');
+      unawaited(
+          globalState.showMessage(message: TextSpan(text: err.toString())));
     }
   }
 
-  Future<void> addProfileFormFile() async {
-    final platformFile = await safeRun(picker.pickerFile);
+  Future<Null> addProfileFormFile() async {
+    final platformFile = await globalState.safeRun(picker.pickerFile);
     final bytes = platformFile?.bytes;
     if (bytes == null) {
-      return;
+      return null;
     }
     if (!context.mounted) return;
     globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
-    toProfiles();
-
-    final profile = await safeRun(
+    toPage(PageLabel.dashboard);
+    final commonScaffoldState = globalState.homeScaffoldKey.currentState;
+    if (commonScaffoldState?.mounted != true) return;
+    final profile = await commonScaffoldState?.loadingRun<Profile?>(
       () async {
-        await Future.delayed(const Duration(milliseconds: 500));
-        return await Profile.normal(label: platformFile?.name).saveFile(bytes);
+        await Future.delayed(const Duration(milliseconds: 300));
+        return Profile.normal(label: platformFile?.name).saveFile(bytes);
       },
-      needLoading: true,
-      title: '${appLocalizations.add}${appLocalizations.profile}',
+      title: "${appLocalizations.add}${appLocalizations.profile}",
     );
     if (profile != null) {
       await addProfile(profile);
@@ -1068,7 +1369,7 @@ class AppController {
   }
 
   Future<void> addProfileFormQrCode() async {
-    final url = await safeRun(picker.pickerConfigQRCode);
+    final url = await globalState.safeRun(picker.pickerConfigQRCode);
     if (url == null) return;
     addProfileFormURL(url);
   }
@@ -1083,78 +1384,200 @@ class AppController {
     _ref.read(providersProvider.notifier).setProvider(provider);
   }
 
-  List<Proxy> _sortOfName(List<Proxy> proxies) {
-    return List.of(proxies)..sort(
-      (a, b) =>
-          utils.sortByChar(utils.getPinyin(a.name), utils.getPinyin(b.name)),
+  List<Proxy> _sortOfName(List<Proxy> proxies) => List.of(proxies)
+    ..sort(
+      (a, b) => utils.sortByChar(
+        utils.getPinyin(a.name),
+        utils.getPinyin(b.name),
+      ),
     );
-  }
 
-  int _delayValue(int? delay) =>
-      (delay == null || delay == -1) ? 1 << 30 : delay;
-
-  List<Proxy> _sortOfDelay({required List<Proxy> proxies, String? testUrl}) {
-    return List.of(proxies)..sort((a, b) {
-      final aDelay = _ref.read(
-        getDelayProvider(proxyName: a.name, testUrl: testUrl),
-      );
-      final bDelay = _ref.read(
-        getDelayProvider(proxyName: b.name, testUrl: testUrl),
-      );
-      return _delayValue(aDelay).compareTo(_delayValue(bDelay));
-    });
-  }
-
-  List<Proxy> getSortProxies({
+  List<Proxy> _sortOfDelay({
     required List<Proxy> proxies,
-    required ProxiesSortType sortType,
     String? testUrl,
-  }) {
-    return switch (sortType) {
-      ProxiesSortType.none => proxies,
-      ProxiesSortType.delay => _sortOfDelay(proxies: proxies, testUrl: testUrl),
-      ProxiesSortType.name => _sortOfName(proxies),
-    };
-  }
+  }) =>
+      List.of(proxies)
+        ..sort(
+          (a, b) {
+            final aDelay = _ref.read(getDelayProvider(
+              proxyName: a.name,
+              testUrl: testUrl,
+            ));
+            final bDelay = _ref.read(
+              getDelayProvider(
+                proxyName: b.name,
+                testUrl: testUrl,
+              ),
+            );
+            if (aDelay == null && bDelay == null) {
+              return 0;
+            }
+            if (aDelay == null || aDelay == -1) {
+              return 1;
+            }
+            if (bDelay == null || bDelay == -1) {
+              return -1;
+            }
+            return aDelay.compareTo(bDelay);
+          },
+        );
 
-  Future<void> clearEffect(String profileId) async {
+  List<Proxy> getSortProxies(List<Proxy> proxies, [String? url]) =>
+      switch (_ref.read(proxiesStyleSettingProvider).sortType) {
+        ProxiesSortType.none => proxies,
+        ProxiesSortType.delay => _sortOfDelay(
+            proxies: proxies,
+            testUrl: url,
+          ),
+        ProxiesSortType.name => _sortOfName(proxies),
+      };
+
+  Future<Null> clearEffect(String profileId) async {
     final profilePath = await appPath.getProfilePath(profileId);
     final providersDirPath = await appPath.getProvidersDirPath(profileId);
-    await Isolate.run(() async {
+    return Isolate.run(() async {
       final profileFile = File(profilePath);
       final isExists = await profileFile.exists();
       if (isExists) {
-        await profileFile.delete(recursive: true);
+        unawaited(profileFile.delete(recursive: true));
       }
-      final providersFileDir = Directory(providersDirPath);
+      final providersFileDir = File(providersDirPath);
       final providersFileIsExists = await providersFileDir.exists();
       if (providersFileIsExists) {
-        await providersFileDir.delete(recursive: true);
+        unawaited(providersFileDir.delete(recursive: true));
       }
     });
   }
 
   void updateTun() {
-    _ref
-        .read(patchClashConfigProvider.notifier)
-        .updateState((state) => state.copyWith.tun(enable: !state.tun.enable));
-  }
-
-  void updateSystemProxy() {
-    _ref
-        .read(networkSettingProvider.notifier)
-        .updateState(
-          (state) => state.copyWith(systemProxy: !state.systemProxy),
+    _ref.read(patchClashConfigProvider.notifier).updateState(
+          (state) => state.copyWith.tun(enable: !state.tun.enable),
         );
   }
 
-  Future<List<Package>> getPackages({bool forceRefresh = false}) async {
-    final cached = _ref.read(packagesProvider);
-    if (!forceRefresh && cached.isNotEmpty) return cached;
+  void updateSystemProxy() {
+    _ref.read(networkSettingProvider.notifier).updateState(
+          (state) => state.copyWith(
+            systemProxy: !state.systemProxy,
+          ),
+        );
+  }
 
-    final packages = await app.getPackages(forceRefresh: forceRefresh);
-    _ref.read(packagesProvider.notifier).value = packages;
-    return packages;
+  void _applyCustomViewSettings(Profile profile) {
+    final headers = profile.providerHeaders;
+
+    final dashboardLayout = headers['flclashx-widgets'];
+    if (dashboardLayout != null && dashboardLayout.isNotEmpty) {
+      final newLayout = DashboardWidgetParser.parseLayout(dashboardLayout);
+      if (newLayout.isNotEmpty) {
+        _ref.read(appSettingProvider.notifier).updateState(
+              (state) => state.copyWith(dashboardWidgets: newLayout),
+            );
+      }
+    }
+
+    final proxiesView = headers['flclashx-view'];
+    if (proxiesView != null && proxiesView.isNotEmpty) {
+      final proxiesStyleNotifier =
+          _ref.read(proxiesStyleSettingProvider.notifier);
+      proxiesStyleNotifier.updateState((currentState) {
+        var newState = currentState;
+        final settings = proxiesView.split(';');
+        for (final setting in settings) {
+          final parts = setting.split(':');
+          if (parts.length == 2) {
+            final key = parts[0].trim().toLowerCase();
+            final value = parts[1].trim().toLowerCase();
+            switch (key) {
+              case 'type':
+                switch (value) {
+                  case 'list':
+                    newState = newState.copyWith(type: ProxiesType.list);
+                    break;
+                  case 'tab':
+                    newState = newState.copyWith(type: ProxiesType.tab);
+                    break;
+                }
+                break;
+              case 'sort':
+                switch (value) {
+                  case 'none':
+                    newState =
+                        newState.copyWith(sortType: ProxiesSortType.none);
+                    break;
+                  case 'delay':
+                    newState =
+                        newState.copyWith(sortType: ProxiesSortType.delay);
+                    break;
+                  case 'name':
+                    newState =
+                        newState.copyWith(sortType: ProxiesSortType.name);
+                    break;
+                }
+                break;
+              case 'layout':
+                switch (value) {
+                  case 'loose':
+                    newState = newState.copyWith(layout: ProxiesLayout.loose);
+                    break;
+                  case 'standard':
+                    newState =
+                        newState.copyWith(layout: ProxiesLayout.standard);
+                    break;
+                  case 'tight':
+                    newState = newState.copyWith(layout: ProxiesLayout.tight);
+                    break;
+                }
+                break;
+              case 'icon':
+                switch (value) {
+                  case 'standard':
+                  case 'icon':
+                    newState =
+                        newState.copyWith(iconStyle: ProxiesIconStyle.icon);
+                    break;
+                  case 'none':
+                    newState =
+                        newState.copyWith(iconStyle: ProxiesIconStyle.none);
+                    break;
+                }
+                break;
+              case 'card':
+                switch (value) {
+                  case 'expand':
+                    newState =
+                        newState.copyWith(cardType: ProxyCardType.expand);
+                    break;
+                  case 'shrink':
+                    newState =
+                        newState.copyWith(cardType: ProxyCardType.shrink);
+                    break;
+                  case 'min':
+                    newState = newState.copyWith(cardType: ProxyCardType.min);
+                    break;
+                  case 'oneline':
+                    newState =
+                        newState.copyWith(cardType: ProxyCardType.oneline);
+                    break;
+                }
+                break;
+            }
+          }
+        }
+        return newState;
+      });
+    }
+  }
+
+  Future<List<Package>> getPackages() async {
+    if (_ref.read(isMobileViewProvider)) {
+      await Future.delayed(commonDuration);
+    }
+    if (_ref.read(packagesProvider).isEmpty) {
+      _ref.read(packagesProvider.notifier).value =
+          await app?.getPackages() ?? [];
+    }
+    return _ref.read(packagesProvider);
   }
 
   void updateStart() {
@@ -1165,11 +1588,14 @@ class AppController {
     final currentProfile = _ref.read(currentProfileProvider);
     if (currentProfile != null &&
         currentProfile.selectedMap[groupName] != proxyName) {
-      final SelectedMap selectedMap = Map.from(currentProfile.selectedMap)
-        ..[groupName] = proxyName;
-      _ref
-          .read(profilesProvider.notifier)
-          .setProfile(currentProfile.copyWith(selectedMap: selectedMap));
+      final selectedMap = Map<String, String>.from(
+        currentProfile.selectedMap,
+      )..[groupName] = proxyName;
+      _ref.read(profilesProvider.notifier).setProfile(
+            currentProfile.copyWith(
+              selectedMap: selectedMap,
+            ),
+          );
     }
   }
 
@@ -1178,29 +1604,38 @@ class AppController {
     if (currentProfile == null) {
       return;
     }
-    _ref
-        .read(profilesProvider.notifier)
-        .setProfile(currentProfile.copyWith(unfoldSet: value));
+    _ref.read(profilesProvider.notifier).setProfile(
+          currentProfile.copyWith(
+            unfoldSet: value,
+          ),
+        );
   }
 
   void changeMode(Mode mode) {
-    _ref
-        .read(patchClashConfigProvider.notifier)
-        .updateState((state) => state.copyWith(mode: mode));
+    _ref.read(patchClashConfigProvider.notifier).updateState(
+          (state) => state.copyWith(mode: mode),
+        );
     if (mode == Mode.global) {
       updateCurrentGroupName(GroupName.GLOBAL.name);
     }
-    updateGroupsDebounce();
     addCheckIpNumDebounce();
   }
 
   void updateAutoLaunch() {
-    _ref
-        .read(appSettingProvider.notifier)
-        .updateState((state) => state.copyWith(autoLaunch: !state.autoLaunch));
+    _ref.read(appSettingProvider.notifier).updateState(
+          (state) => state.copyWith(
+            autoLaunch: !state.autoLaunch,
+          ),
+        );
+  }
+
+  void updateTheme(ThemeProps themeProps) {
+    _ref.read(themeSettingProvider.notifier).updateState((_) => themeProps);
   }
 
   Future<void> updateVisible() async {
+    if (Platform.isMacOS) return;
+
     final visible = await window?.isVisible;
     if (visible != null && !visible) {
       window?.show();
@@ -1210,14 +1645,18 @@ class AppController {
   }
 
   void updateMode() {
-    _ref.read(patchClashConfigProvider.notifier).updateState((state) {
-      final index = Mode.values.indexWhere((item) => item == state.mode);
-      if (index == -1) {
-        return null;
-      }
-      final nextIndex = index + 1 > Mode.values.length - 1 ? 0 : index + 1;
-      return state.copyWith(mode: Mode.values[nextIndex]);
-    });
+    _ref.read(patchClashConfigProvider.notifier).updateState(
+      (state) {
+        final index = Mode.values.indexWhere((item) => item == state.mode);
+        if (index == -1) {
+          return null;
+        }
+        final nextIndex = index + 1 > Mode.values.length - 1 ? 0 : index + 1;
+        return state.copyWith(
+          mode: Mode.values[nextIndex],
+        );
+      },
+    );
   }
 
   Future<void> handleAddOrUpdate(WidgetRef ref, [Rule? rule]) async {
@@ -1225,34 +1664,45 @@ class AppController {
       child: AddRuleDialog(
         rule: rule,
         snippet: ref.read(
-          profileOverrideStateProvider.select((state) => state.snippet!),
+          profileOverrideStateProvider.select(
+            (state) => state.snippet!,
+          ),
         ),
       ),
     );
     if (res == null) {
       return;
     }
-    ref.read(profileOverrideStateProvider.notifier).updateState((state) {
-      final model = state.copyWith.overrideData!(
-        rule: state.overrideData!.rule.updateRules((rules) {
-          final index = rules.indexWhere((item) => item.id == res.id);
-          if (index == -1) {
-            return List.from([res, ...rules]);
-          }
-          return List.from(rules)..[index] = res;
-        }),
-      );
-      return model;
-    });
+    ref.read(profileOverrideStateProvider.notifier).updateState(
+      (state) {
+        final model = state.copyWith.overrideData!(
+          rule: state.overrideData!.rule.updateRules(
+            (rules) {
+              final index = rules.indexWhere((item) => item.id == res.id);
+              if (index == -1) {
+                return List.from([res, ...rules]);
+              }
+              return List.from(rules)..[index] = res;
+            },
+          ),
+        );
+        return model;
+      },
+    );
   }
 
   Future<bool> exportLogs() async {
-    final logsRaw = _ref.read(logsProvider).list.map((item) => item.toString());
+    final logsRaw = _ref.read(logsProvider).list.map(
+          (item) => item.toString(),
+        );
     final data = await Isolate.run<List<int>>(() async {
-      final logsRawString = logsRaw.join('\n');
+      final logsRawString = logsRaw.join("\n");
       return utf8.encode(logsRawString);
     });
-    return await picker.saveFile(utils.logFile, Uint8List.fromList(data)) !=
+    return await picker.saveFile(
+          utils.logFile,
+          Uint8List.fromList(data),
+        ) !=
         null;
   }
 
@@ -1260,685 +1710,106 @@ class AppController {
     final homeDirPath = await appPath.homeDirPath;
     final profilesPath = await appPath.profilesPath;
     final configJson = globalState.config.toJson();
-
-    // Get valid profile IDs
-    final validProfileIds = globalState.config.profiles
-        .map((p) => p.id)
-        .toSet();
-    final currentProfileId = globalState.config.currentProfileId;
-
-    commonPrint.log(
-      'Starting backup: ${validProfileIds.length} profiles, current: $currentProfileId',
-    );
-
     return Isolate.run<List<int>>(() async {
-      // Use ZipFileEncoder like FLClash - more reliable than ZipEncoder + Archive
-      final tempDir = Directory.systemTemp;
-      final tempZipPath = join(
-        tempDir.path,
-        'bettbox_backup_${DateTime.now().millisecondsSinceEpoch}.zip',
-      );
-      final encoder = ZipFileEncoder();
-      encoder.create(tempZipPath);
-
-      // Add marker file
-      final markerData = json.encode({
-        'app': 'MeowClash',
-        'version': '1.0',
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      });
-      final markerBytes = utf8.encode(markerData);
-      final tempMarkerFile = File(
-        join(
-          tempDir.path,
-          'bettbox_marker_${DateTime.now().millisecondsSinceEpoch}.tmp',
-        ),
-      );
-      await tempMarkerFile.writeAsBytes(markerBytes);
-      await encoder.addFile(tempMarkerFile, '.bettbox_marker');
-      await tempMarkerFile.delete();
-
-      // Add config file
-      final configStr = json.encode(configJson);
-      final tempConfigFile = File(
-        join(
-          tempDir.path,
-          'bettbox_config_${DateTime.now().millisecondsSinceEpoch}.tmp',
-        ),
-      );
-      await tempConfigFile.writeAsString(configStr);
-      await encoder.addFile(tempConfigFile, 'config.json');
-      await tempConfigFile.delete();
-
-      // Add profiles dir (valid subscriptions only)
-      final profilesDir = Directory(profilesPath);
-      if (await profilesDir.exists()) {
-        final files = await profilesDir
-            .list(recursive: false)
-            .toList(); // First level only
-
-        for (final file in files) {
-          if (file is File) {
-            // Check if valid subscription config
-            final fileName = basename(file.path);
-            final profileId = fileName.replaceAll(RegExp(r'\.(yaml|yml)$'), '');
-
-            if (validProfileIds.contains(profileId)) {
-              // Normalize path: use Unix-style / separator
-              final relativePath = relative(
-                file.path,
-                from: homeDirPath,
-              ).replaceAll('\\', '/');
-              await encoder.addFile(file, relativePath);
-            }
-          }
-        }
-
-        // Add current active subscription Providers
-        if (currentProfileId != null &&
-            validProfileIds.contains(currentProfileId)) {
-          final providersDir = Directory(
-            join(profilesPath, 'providers', currentProfileId),
-          );
-
-          if (await providersDir.exists()) {
-            final providerFiles = await providersDir
-                .list(recursive: true)
-                .toList();
-
-            for (final providerFile in providerFiles) {
-              if (providerFile is File) {
-                final relativePath = relative(
-                  providerFile.path,
-                  from: homeDirPath,
-                ).replaceAll('\\', '/');
-                await encoder.addFile(providerFile, relativePath);
-              }
-            }
-          }
-        }
-      }
-
-      encoder.close();
-
-      // Read the zip file and return bytes
-      final zipFile = File(tempZipPath);
-      final bytes = await zipFile.readAsBytes();
-      await zipFile.delete();
-      return bytes;
+      final archive = Archive();
+      archive.addJson("config.json", configJson);
+      archive.addDirectoryToArchive(profilesPath, homeDirPath);
+      final zipEncoder = ZipEncoder();
+      return zipEncoder.encode(archive);
     });
   }
 
   Future<void> updateTray([bool focus = false]) async {
-    final trayState = _ref.read(trayStateProvider);
-    await tray.update(trayState: trayState, focus: focus);
+    tray.update(
+      trayState: _ref.read(trayStateProvider),
+    );
   }
 
-  Future<void> _processRecoveryArchive(
-    Future<Archive> Function() getArchive,
-    RecoveryOption recoveryOption,
-  ) async {
-    try {
-      final archive = await getArchive();
-      commonPrint.log('Archive decoded: ${archive.files.length} files');
-      await _recoveryFromArchive(archive, recoveryOption);
-    } catch (e) {
-      commonPrint.log('Recovery failed: $e');
-      throw 'Backup file is corrupted or invalid: $e';
-    }
-  }
-
-  /// Restore data from bytes
   Future<void> recoveryData(
     List<int> data,
     RecoveryOption recoveryOption,
   ) async {
-    commonPrint.log('Starting recovery from bytes: ${data.length} bytes');
-    await _processRecoveryArchive(() => Isolate.run<Archive>(() {
+    final archive = await Isolate.run<Archive>(() {
       final zipDecoder = ZipDecoder();
       return zipDecoder.decodeBytes(data);
-    }), recoveryOption);
-  }
-
-  /// Restore data from file path
-  Future<void> recoveryDataFromFile(
-    String path,
-    RecoveryOption recoveryOption,
-  ) async {
-    commonPrint.log('Starting recovery from file: $path');
-    await _processRecoveryArchive(() => Isolate.run<Archive>(() {
-      try {
-        final input = InputFileStream(path);
-        final zipDecoder = ZipDecoder();
-        final result = zipDecoder.decodeStream(input);
-        input.close();
-        if (result.files.isNotEmpty) {
-          return result;
-        }
-      } catch (e) {
-        commonPrint.log('Stream decoding failed: $e');
-      }
-
-      final bytes = File(path).readAsBytesSync();
-      final zipDecoder = ZipDecoder();
-      return zipDecoder.decodeBytes(bytes);
-    }), recoveryOption);
-  }
-
-  /// Unified recovery entry: check marker and dispatch to recovery logic
-  Future<void> _recoveryFromArchive(
-    Archive archive,
-    RecoveryOption recoveryOption,
-  ) async {
-    if (archive.files.isEmpty) {
-      throw 'Backup file is empty or corrupted';
-    }
-
+    });
     final homeDirPath = await appPath.homeDirPath;
-
-    // Check for MeowClash marker
-    final hasMeowClashMarker = archive.files.any(
-      (file) => file.name == '.bettbox_marker',
-    );
-
-    if (hasMeowClashMarker) {
-      // MeowClash backup
-      await _recoveryMeowClashBackup(archive, recoveryOption, homeDirPath);
-    } else {
-      // Legacy backup
-      await _recoveryLegacyBackup(archive, recoveryOption, homeDirPath);
-    }
-  }
-
-  /// Restore MeowClash
-  Future<void> _recoveryMeowClashBackup(
-    Archive archive,
-    RecoveryOption recoveryOption,
-    String homeDirPath,
-  ) async {
-    // Separate config and profile files
-    final configs = archive.files
-        .where(
-          (item) =>
-              item.name.endsWith('.json') && item.name != '.bettbox_marker',
-        )
-        .toList();
-    final profiles = archive.files.where(
-      (item) => !item.name.endsWith('.json') && item.name != '.bettbox_marker',
-    );
-
-    // Find config.json
-    final configIndex = configs.indexWhere(
-      (config) => config.name == 'config.json',
-    );
-    if (configIndex == -1) throw 'invalid backup file';
-
-    // Parse config
+    final configs =
+        archive.files.where((item) => item.name.endsWith(".json")).toList();
+    final profiles =
+        archive.files.where((item) => !item.name.endsWith(".json"));
+    final configIndex =
+        configs.indexWhere((config) => config.name == "config.json");
+    if (configIndex == -1) throw "invalid backup file";
     final configFile = configs[configIndex];
-    final configContent = configFile.content;
-    if (configContent.isEmpty) {
-      throw 'Config file is empty or corrupted';
-    }
     var tempConfig = Config.compatibleFromJson(
-      json.decode(utf8.decode(configContent)),
+      json.decode(
+        utf8.decode(configFile.content),
+      ),
     );
-
-    // Restore profile files to disk
     for (final profile in profiles) {
+      if (!profile.isFile) continue;
       final filePath = join(homeDirPath, profile.name);
       final file = File(filePath);
       await file.create(recursive: true);
       await file.writeAsBytes(profile.content);
     }
-
-    // Apply recovery logic
-    _recovery(tempConfig, recoveryOption);
-  }
-
-  /// Restore legacy
-  Future<void> _recoveryLegacyBackup(
-    Archive archive,
-    RecoveryOption recoveryOption,
-    String homeDirPath,
-  ) async {
-    // Separate config and profile files
-    final configs = archive.files
-        .where((item) => item.name.endsWith('.json'))
-        .toList();
-    final profileFiles = archive.files
-        .where(
-          (item) =>
-              !item.name.endsWith('.json') && !item.name.endsWith('.sqlite'),
-        )
-        .toList();
-
-    // Find config.json
-    final configIndex = configs.indexWhere(
-      (config) => config.name == 'config.json',
-    );
-    if (configIndex == -1) throw 'invalid backup file';
-
-    // Parse backup config
-    final configFile = configs[configIndex];
-    final configContent = configFile.content;
-    if (configContent.isEmpty) {
-      throw 'Config file is empty or corrupted';
+    final clashConfigIndex =
+        configs.indexWhere((config) => config.name == "clashConfig.json");
+    if (clashConfigIndex != -1) {
+      final clashConfigFile = configs[clashConfigIndex];
+      tempConfig = tempConfig.copyWith(
+        patchClashConfig: ClashConfig.fromJson(
+          json.decode(
+            utf8.decode(
+              clashConfigFile.content,
+            ),
+          ),
+        ),
+      );
     }
-    final backupConfig = Config.compatibleFromJson(
-      json.decode(utf8.decode(configContent)),
-    );
-
-    // Restore profile files to disk
-    for (final profile in profileFiles) {
-      final filePath = join(homeDirPath, profile.name);
-      final file = File(filePath);
-      await file.create(recursive: true);
-      await file.writeAsBytes(profile.content);
-    }
-
-    // Extract profiles from backup
-    List<Profile> profiles = [];
-    bool extractedFromDatabase = false;
-
-    // 1. Try SQLite database first (FlClash backup)
-    final dbFile = archive.files.firstWhereOrNull(
-      (file) => file.name.endsWith('database.sqlite'),
-    );
-
-    if (dbFile != null && dbFile.content.isNotEmpty) {
-      try {
-        // Save database temporarily
-        final tempDbPath = join(await appPath.tempPath, 'temp_flclash.db');
-        final tempDb = File(tempDbPath);
-        await tempDb.writeAsBytes(dbFile.content);
-
-        // Extract profiles from database
-        profiles = await FlClashDatabaseExtractor.extractProfiles(tempDbPath);
-        extractedFromDatabase = true;
-
-        // Clean up temp file
-        if (await tempDb.exists()) {
-          await tempDb.delete();
-        }
-
-        commonPrint.log(
-          'Extracted ${profiles.length} profiles from FlClash database',
-        );
-      } catch (e) {
-        commonPrint.log(
-          'Failed to extract from database, fallback to file names: $e',
-        );
-        profiles = [];
-        extractedFromDatabase = false;
-      }
-    }
-
-    // 2. Fallback if database extraction failed
-    if (profiles.isEmpty) {
-      // Get from config.json
-      if (backupConfig.profiles.isNotEmpty) {
-        profiles = backupConfig.profiles;
-      } else {
-        // Extract ID from profile file names (FlClash mode)
-        for (final profileFile in profileFiles) {
-          final fileName = profileFile.name.split('/').last;
-          if (fileName.endsWith('.yaml') || fileName.endsWith('.yml')) {
-            final id = fileName.replaceAll(RegExp(r'\.(yaml|yml)$'), '');
-
-            // Try to extract friendly label from YAML
-            final label = await _extractLabelFromYaml(profileFile) ?? id;
-
-            // Create basic Profile object
-            profiles.add(
-              Profile(
-                id: id,
-                label: label,
-                autoUpdateDuration: defaultUpdateDuration,
-                url: '', // Mark empty, user needs to add
-              ),
-            );
-          }
-        }
-      }
-    }
-
-    // Create limited recovery config (subscriptions only)
-    Config limitedConfig = globalState.config.copyWith(profiles: profiles);
-
-    // Android: also restore app list
-    if (system.isAndroid) {
-      // FlClash uses accessControlProps instead of accessControl
-      final vpnProps = backupConfig.vpnProps;
-      AccessControl? accessControl;
-
-      // Try to get from vpnProps.accessControl
-      try {
-        accessControl = vpnProps.accessControl;
-      } catch (_) {
-        // Fallback: try accessControlProps from raw JSON
-        try {
-          final configJson = json.decode(utf8.decode(configFile.content));
-          final vpnPropsJson = configJson['vpnProps'];
-          if (vpnPropsJson != null && vpnPropsJson is Map) {
-            final accessControlPropsJson = vpnPropsJson['accessControlProps'];
-            if (accessControlPropsJson != null) {
-              accessControl = AccessControl.fromJson(
-                accessControlPropsJson as Map<String, dynamic>,
-              );
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (accessControl != null) {
-        limitedConfig = limitedConfig.copyWith.vpnProps(
-          accessControl: accessControl,
-        );
-      }
-    }
-
-    // Apply limited recovery
-    _recoveryLimited(limitedConfig, recoveryOption);
-
-    // Show recovery result message
-    _showRecoveryResultMessage(profiles, extractedFromDatabase);
-  }
-
-  /// Extract label
-  Future<String?> _extractLabelFromYaml(ArchiveFile profileFile) async {
-    try {
-      final yamlContent = utf8.decode(profileFile.content);
-
-      // Try to extract from comments
-      final lines = yamlContent.split('\n');
-      for (final line in lines) {
-        if (line.trim().startsWith('#')) {
-          final comment = line.trim().substring(1).trim();
-          if (comment.isNotEmpty &&
-              comment.length < 50 &&
-              !comment.startsWith('!')) {
-            return comment;
-          }
-        }
-      }
-
-      // Try to extract from first proxy name
-      final yamlMap = loadYaml(yamlContent);
-      if (yamlMap is Map && yamlMap['proxies'] is List) {
-        final proxies = yamlMap['proxies'] as List;
-        if (proxies.isNotEmpty && proxies[0] is Map) {
-          final firstProxy = proxies[0] as Map;
-          final name = firstProxy['name'];
-          if (name != null && name.toString().isNotEmpty) {
-            return 'Sub - $name';
-          }
-        }
-      }
-    } catch (e) {
-      commonPrint.log('Failed to extract label from YAML: $e');
-    }
-    return null;
-  }
-
-  /// Show results
-  void _showRecoveryResultMessage(
-    List<Profile> profiles,
-    bool extractedFromDatabase,
-  ) {
-    if (profiles.isEmpty) return;
-
-    final hasEmptyUrl = profiles.any((p) => p.url.isEmpty);
-
-    String message;
-    if (extractedFromDatabase) {
-      // Successfully extracted from database
-      message = 'Restored ${profiles.length} subscriptions with URLs.';
-    } else if (hasEmptyUrl) {
-      // Partial recovery, missing URLs
-      message =
-          'Restored ${profiles.length} subscriptions.\n\n'
-          'Warning: URLs not included. Edit subscriptions to add URLs for auto-update.';
-    } else {
-      // Complete recovery
-      message = 'Restored ${profiles.length} subscriptions.';
-    }
-
-    globalState.showMessage(
-      title: appLocalizations.recoverySuccess,
-      message: TextSpan(text: message),
+    _recovery(
+      tempConfig,
+      recoveryOption,
     );
   }
 
-  void _restoreProfiles(List<Profile> profiles) {
-    final recoveryStrategy = _ref.read(
-      appSettingProvider.select((state) => state.recoveryStrategy),
-    );
+  void _recovery(Config config, RecoveryOption recoveryOption) {
+    final recoveryStrategy = _ref.read(appSettingProvider.select(
+      (state) => state.recoveryStrategy,
+    ));
+    final profiles = config.profiles;
     if (recoveryStrategy == RecoveryStrategy.override) {
       _ref.read(profilesProvider.notifier).value = profiles;
     } else {
       for (final profile in profiles) {
-        _ref.read(profilesProvider.notifier).setProfile(profile);
+        _ref.read(profilesProvider.notifier).setProfile(
+              profile,
+            );
       }
     }
-  }
-
-  void _ensureCurrentProfile(List<Profile> profiles) {
-    final currentProfile = _ref.read(currentProfileProvider);
-    if (currentProfile == null && profiles.isNotEmpty) {
-      _ref.read(currentProfileIdProvider.notifier).value = profiles.first.id;
-    }
-  }
-
-  /// Partial restore
-  void _recoveryLimited(Config config, RecoveryOption recoveryOption) {
-    final profiles = config.profiles;
-
-    // Restore subscriptions
-    _restoreProfiles(profiles);
-
-    // Android: restore app list
-    if (system.isAndroid) {
-      _ref
-          .read(vpnSettingProvider.notifier)
-          .updateState(
-            (state) =>
-                state.copyWith(accessControl: config.vpnProps.accessControl),
-          );
-    }
-
-    // Ensure current profile exists
-    _ensureCurrentProfile(profiles);
-  }
-
-  /// Full restore
-  void _recovery(Config config, RecoveryOption recoveryOption) {
-    final profiles = config.profiles;
-
-    // Restore subscriptions
-    _restoreProfiles(profiles);
-
     final onlyProfiles = recoveryOption == RecoveryOption.onlyProfiles;
     if (!onlyProfiles) {
-      // Restore settings
-
-      // 1. Clash config
-      if (system.isDesktop) {
-        // Desktop: preserve current TUN state, avoid mobile backup override
-        final currentTunEnable = _ref.read(patchClashConfigProvider).tun.enable;
-        _ref.read(patchClashConfigProvider.notifier).value = config
-            .patchClashConfig
-            .copyWith
-            .tun(enable: currentTunEnable);
-      } else {
-        // Mobile: restore directly
-        _ref.read(patchClashConfigProvider.notifier).value =
-            config.patchClashConfig;
-      }
-
-      // 2. App settings
-      final currentAppSetting = _ref.read(appSettingProvider);
-      final backupAppSetting = config.appSetting;
-
-      // Merge dashboardWidgets: preserve platform-specific widgets
-      final currentWidgets = currentAppSetting.dashboardWidgets;
-      final backupWidgets = backupAppSetting.dashboardWidgets;
-      final mergedWidgets = _mergeDashboardWidgets(
-        currentWidgets,
-        backupWidgets,
-      );
-
-      _ref.read(appSettingProvider.notifier).value = backupAppSetting.copyWith(
-        dashboardWidgets: mergedWidgets,
-      );
-
-      // 3. Restore current profile ID
+      _ref.read(patchClashConfigProvider.notifier).value =
+          config.patchClashConfig;
+      _ref.read(appSettingProvider.notifier).value = config.appSetting;
       _ref.read(currentProfileIdProvider.notifier).value =
           config.currentProfileId;
-
-      // 4. Restore WebDAV settings
       _ref.read(appDAVSettingProvider.notifier).value = config.dav;
-
-      // 5. Restore theme settings
       _ref.read(themeSettingProvider.notifier).value = config.themeProps;
-
-      // 6. Restore window settings (desktop only)
-      if (system.isDesktop) {
-        _ref.read(windowSettingProvider.notifier).value = config.windowProps;
-      }
-
-      // 7. VPN settings
-      if (system.isAndroid) {
-        // Android: restore VPN settings
-        _ref.read(vpnSettingProvider.notifier).value = config.vpnProps;
-      } else if (system.isDesktop) {
-        // Desktop: restore network settings, preserve TUN state
-        final currentVpnProps = _ref.read(vpnSettingProvider);
-        _ref.read(networkSettingProvider.notifier).value = config.networkProps;
-
-        // Only restore non-platform-specific VPN settings
-        _ref.read(vpnSettingProvider.notifier).value = config.vpnProps.copyWith(
-          enable: currentVpnProps.enable, // Preserve current TUN state
-        );
-      }
-
-      // 8. Restore proxy style
+      _ref.read(windowSettingProvider.notifier).value = config.windowProps;
+      _ref.read(vpnSettingProvider.notifier).value = config.vpnProps;
       _ref.read(proxiesStyleSettingProvider.notifier).value =
           config.proxiesStyle;
-
-      // 9. Restore DNS override settings
       _ref.read(overrideDnsProvider.notifier).value = config.overrideDns;
-
-      // 10. Restore hotkey settings (desktop only)
-      if (system.isDesktop) {
-        _ref.read(hotKeyActionsProvider.notifier).value = config.hotKeyActions;
-      }
-
-      // 11. Restore script settings
+      _ref.read(networkSettingProvider.notifier).value = config.networkProps;
+      _ref.read(hotKeyActionsProvider.notifier).value = config.hotKeyActions;
       _ref.read(scriptStateProvider.notifier).value = config.scriptProps;
     }
-
-    // Ensure current profile exists
-    _ensureCurrentProfile(profiles);
-  }
-
-  /// Merge widgets
-  List<DashboardWidget> _mergeDashboardWidgets(
-    List<DashboardWidget> currentWidgets,
-    List<DashboardWidget> backupWidgets,
-  ) {
-    // Platform widgets
-    final Set<DashboardWidget> androidOnlyWidgets = {
-      // Android-specific widgets (if any)
-    };
-
-    final Set<DashboardWidget> desktopOnlyWidgets = {
-      DashboardWidget.tunButton, // TUN button (desktop-specific)
-      DashboardWidget
-          .systemProxyButton, // System proxy button (more common on desktop)
-    };
-
-    // Determine platform-specific widgets
-    final platformSpecificWidgets = system.isAndroid
-        ? androidOnlyWidgets
-        : desktopOnlyWidgets;
-
-    // Build position map for platform-specific widgets
-    final platformWidgetPositions = <DashboardWidget, int>{};
-    for (var i = 0; i < currentWidgets.length; i++) {
-      final widget = currentWidgets[i];
-      if (platformSpecificWidgets.contains(widget)) {
-        platformWidgetPositions[widget] = i;
-      }
+    final currentProfile = _ref.read(currentProfileProvider);
+    if (currentProfile == null) {
+      _ref.read(currentProfileIdProvider.notifier).value = profiles.first.id;
     }
-
-    // Get non-platform-specific widgets from backup
-    final backupCommonWidgets = backupWidgets
-        .where((widget) => !platformSpecificWidgets.contains(widget))
-        .toList();
-
-    // Merge strategy: insert platform-specific widgets at original positions
-    final mergedWidgets = <DashboardWidget>[...backupCommonWidgets];
-
-    // Insert platform-specific widgets by position (smallest first)
-    final sortedEntries = platformWidgetPositions.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
-
-    for (final entry in sortedEntries) {
-      final widget = entry.key;
-      final originalPosition = entry.value;
-
-      // Insert position cannot exceed list length
-      final insertPosition = originalPosition.clamp(0, mergedWidgets.length);
-      mergedWidgets.insert(insertPosition, widget);
-    }
-
-    // Use default widgets if merged is empty
-    return mergedWidgets.isNotEmpty ? mergedWidgets : defaultDashboardWidgets;
-  }
-
-  /// Rollback
-  Future<void> _rollbackConfig() async {
-    final lastConfig = globalState.getLastSuccessfulConfig();
-    if (lastConfig == null) {
-      commonPrint.log('No backup config available for rollback');
-      return;
-    }
-
-    try {
-      commonPrint.log('Rolling back to last successful config');
-      await clashCore.setupConfig(lastConfig);
-      commonPrint.log('Config rollback successful');
-    } catch (e) {
-      commonPrint.log('Config rollback failed: $e');
-    }
-  }
-
-  Future<T?> safeRun<T>(
-    FutureOr<T> Function() futureFunction, {
-    String? title,
-    bool needLoading = false,
-    bool silence = true,
-  }) async {
-    final realSilence = needLoading == true ? true : silence;
-    try {
-      if (needLoading) {
-        _ref.read(loadingProvider.notifier).value = true;
-      }
-      final res = await futureFunction();
-      return res;
-    } catch (e) {
-      commonPrint.log('$e');
-      if (realSilence) {
-        globalState.showNotifier(e.toString());
-      } else {
-        globalState.showMessage(
-          title: title ?? appLocalizations.tip,
-          message: TextSpan(text: e.toString()),
-        );
-      }
-      return null;
-    } finally {
-      _ref.read(loadingProvider.notifier).value = false;
-    }
+    savePreferencesDebounce();
   }
 }

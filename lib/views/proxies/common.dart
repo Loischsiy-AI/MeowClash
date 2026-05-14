@@ -1,8 +1,8 @@
-import 'package:meow_clash/clash/clash.dart';
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
-import 'package:meow_clash/models/models.dart';
-import 'package:meow_clash/state.dart';
+import 'package:flclashx/clash/clash.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/models/models.dart';
+import 'package:flclashx/state.dart';
 
 double get listHeaderHeight {
   final measure = globalState.measure;
@@ -14,61 +14,70 @@ double getItemHeight(ProxyCardType proxyCardType) {
   final baseHeight =
       16 + measure.bodyMediumHeight * 2 + measure.bodySmallHeight + 8 + 4;
   return switch (proxyCardType) {
-    ProxyCardType.expand => baseHeight - measure.bodySmallHeight + measure.labelSmallHeight * 2 + 4,
+    ProxyCardType.expand => baseHeight + measure.labelSmallHeight + 6,
     ProxyCardType.shrink => baseHeight,
     ProxyCardType.min => baseHeight - measure.bodyMediumHeight,
+    ProxyCardType.oneline => 16 + measure.bodyMediumHeight + 4,
   };
 }
 
 Future<void> proxyDelayTest(Proxy proxy, [String? testUrl]) async {
   final appController = globalState.appController;
   final state = appController.getProxyCardState(proxy.name);
-  final url = appController.getRealTestUrl(state.testUrl.getSafeValue(testUrl ?? ''));
+  final url = state.testUrl.getSafeValue(
+    appController.getRealTestUrl(testUrl),
+  );
   if (state.proxyName.isEmpty) {
     return;
   }
-  // Set testing state
-  appController.setDelay(Delay(url: url, name: state.proxyName, value: 0));
-  // Get and set delay
-  appController.setDelay(await clashCore.getDelay(url, state.proxyName));
-}
-
-bool _isNonTestableProxy(String proxyName) {
-  final name = proxyName.toUpperCase();
-  return name == 'REJECT' || name == 'REJECT-DROP' || name == 'PASS';
+  appController
+    ..setDelay(
+      Delay(
+        url: url,
+        name: state.proxyName,
+        value: 0,
+      ),
+    )
+    ..setDelay(
+      await clashCore.getDelay(
+        url,
+        state.proxyName,
+      ),
+    );
 }
 
 Future<void> delayTest(List<Proxy> proxies, [String? testUrl]) async {
   final appController = globalState.appController;
-  final proxyNames = proxies
-      .map((proxy) => proxy.name)
-      .where((name) => !_isNonTestableProxy(name))
-      .toSet()
-      .toList();
-  final concurrencyLimit = globalState.config.proxiesStyle.concurrencyLimit;
+  final proxyNames = proxies.map((proxy) => proxy.name).toSet().toList();
 
-  // Create lazy task
-  final delayTasks = proxyNames.map((proxyName) {
-    return () async {
-      final state = appController.getProxyCardState(proxyName);
-      final url = appController.getRealTestUrl(
-        state.testUrl.getSafeValue(testUrl ?? ''),
+  final delayProxies = proxyNames.map<Future>((proxyName) async {
+    final state = appController.getProxyCardState(proxyName);
+    final url = state.testUrl.getSafeValue(
+      appController.getRealTestUrl(testUrl),
+    );
+    final name = state.proxyName;
+    if (name.isEmpty) {
+      return;
+    }
+    appController
+      ..setDelay(
+        Delay(
+          url: url,
+          name: name,
+          value: 0,
+        ),
+      )
+      ..setDelay(
+        await clashCore.getDelay(
+          url,
+          name,
+        ),
       );
-      final name = state.proxyName;
-      if (name.isEmpty) {
-        return;
-      }
-      // Set testing state
-      appController.setDelay(Delay(url: url, name: name, value: 0));
-      // Get and set delay
-      appController.setDelay(await clashCore.getDelay(url, name));
-    };
   }).toList();
 
-  // Execute tasks in batches
-  final batchedTasks = delayTasks.batch(concurrencyLimit);
-  for (final batchTasks in batchedTasks) {
-    await Future.wait(batchTasks.map((task) => task()));
+  final batchesDelayProxies = delayProxies.batch(100);
+  for (final batchDelayProxies in batchesDelayProxies) {
+    await Future.wait(batchDelayProxies);
   }
   appController.addSortNum();
 }

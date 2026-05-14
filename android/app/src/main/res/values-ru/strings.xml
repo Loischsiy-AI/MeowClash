@@ -1,7 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="meow_clash">MeowClash</string>
-    <string name="core_connected">Подключено</string>
-    <string name="service_running">Сервис запущен</string>
-    <string name="core_suspended">Приостановлено</string>
-    <string name="smart_auto_stop_service_running">Автостоп запущен</string>
+    <string name="widget_description">FlClashX режим и туннель</string>
+    <string name="widget_mode_rule">Правила</string>
+    <string name="widget_mode_global">Глобал</string>
+    <string name="widget_mode_direct">Прямой</string>
+    <string name="widget_toggle_desc">Переключить туннель</string>
+    <string name="widget_on_off_description">FlClashX вкл/выкл туннель</string>
 </resources>

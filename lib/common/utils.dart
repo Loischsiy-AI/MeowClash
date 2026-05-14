@@ -3,10 +3,9 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/enum/enum.dart';
+import 'package:flclashx/common/common.dart';
+import 'package:flclashx/enum/enum.dart';
 import 'package:flutter/foundation.dart';
-import 'package:meow_clash/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lpinyin/lpinyin.dart';
@@ -22,15 +21,16 @@ class Utils {
   String get id {
     final timestamp = DateTime.now().microsecondsSinceEpoch;
     final random = Random();
-    final randomStr = String.fromCharCodes(
-      List.generate(8, (_) => random.nextInt(26) + 97),
-    );
-    return '$timestamp$randomStr';
+    final randomStr =
+        String.fromCharCodes(List.generate(8, (_) => random.nextInt(26) + 97));
+    return "$timestamp$randomStr";
   }
 
   String getDateStringLast2(int value) {
-    var valueRaw = '0$value';
-    return valueRaw.substring(valueRaw.length - 2);
+    final valueRaw = "0$value";
+    return valueRaw.substring(
+      valueRaw.length - 2,
+    );
   }
 
   String generateRandomString({int minLength = 10, int maxLength = 100}) {
@@ -38,14 +38,13 @@ class Utils {
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random();
 
-    int length = minLength + random.nextInt(maxLength - minLength + 1);
+    final length = minLength + random.nextInt(maxLength - minLength + 1);
 
-    String result = '';
-    for (int i = 0; i < length; i++) {
+    var result = '';
+    for (var i = 0; i < length; i++) {
       if (random.nextBool()) {
-        result += String.fromCharCode(
-          0x4E00 + random.nextInt(0x9FA5 - 0x4E00 + 1),
-        );
+        result +=
+            String.fromCharCode(0x4E00 + random.nextInt(0x9FA5 - 0x4E00 + 1));
       } else {
         result += latinChars[random.nextInt(latinChars.length)];
       }
@@ -55,27 +54,26 @@ class Utils {
   }
 
   String get uuidV4 {
-    final Random random = Random();
+    final random = Random();
     final bytes = List.generate(16, (_) => random.nextInt(256));
 
     bytes[6] = (bytes[6] & 0x0F) | 0x40;
     bytes[8] = (bytes[8] & 0x3F) | 0x80;
 
-    final hex = bytes
-        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-        .join();
+    final hex =
+        bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
 
     return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}';
   }
 
   String getTimeDifference(DateTime dateTime) {
-    var currentDateTime = DateTime.now();
-    var difference = currentDateTime.difference(dateTime);
-    var inHours = difference.inHours;
-    var inMinutes = difference.inMinutes;
-    var inSeconds = difference.inSeconds;
+    final currentDateTime = DateTime.now();
+    final difference = currentDateTime.difference(dateTime);
+    final inHours = difference.inHours;
+    final inMinutes = difference.inMinutes;
+    final inSeconds = difference.inSeconds;
 
-    return '${getDateStringLast2(inHours)}:${getDateStringLast2(inMinutes)}:${getDateStringLast2(inSeconds)}';
+    return "${getDateStringLast2(inHours)}:${getDateStringLast2(inMinutes)}:${getDateStringLast2(inSeconds)}";
   }
 
   String getTimeText(int? timeStamp) {
@@ -83,41 +81,28 @@ class Utils {
       return '00:00:00';
     }
     final diff = timeStamp / 1000;
-    final inHours = (diff / 3600).floor();
-    if (inHours > 99) {
-      return '99:59:59';
-    }
-    final inMinutes = (diff / 60 % 60).floor();
-    final inSeconds = (diff % 60).floor();
+    final totalSeconds = diff.floor();
 
-    return '${getDateStringLast2(inHours)}:${getDateStringLast2(inMinutes)}:${getDateStringLast2(inSeconds)}';
-  }
+    const maxSeconds = 31 * 86400 + 23 * 3600 + 59 * 60 + 59;
+    if (totalSeconds >= maxSeconds) {
+      return "Seriously?";
+    }
 
-  Locale getSystemLocale() {
-    final platformLocale = WidgetsBinding.instance.platformDispatcher.locale;
-    final supportedLocales = AppLocalizations.delegate.supportedLocales;
-    
-    if (platformLocale.languageCode.toLowerCase() == 'zh') {
-      final isTraditional = 
-        (platformLocale.countryCode?.toUpperCase() == 'TW') ||
-        (platformLocale.countryCode?.toUpperCase() == 'HK') ||
-        (platformLocale.countryCode?.toUpperCase() == 'MO') ||
-        (platformLocale.scriptCode?.toLowerCase() == 'hant');
-      return isTraditional ? const Locale('zh', 'TC') : const Locale('zh', 'CN');
+    final days = (totalSeconds / 86400).floor();
+    final hours = ((totalSeconds % 86400) / 3600).floor();
+    final minutes = ((totalSeconds % 3600) / 60).floor();
+    final seconds = (totalSeconds % 60).floor();
+
+    if (days == 0) {
+      return "${getDateStringLast2(hours)}:${getDateStringLast2(minutes)}:${getDateStringLast2(seconds)}";
     }
-    
-    for (final locale in supportedLocales) {
-      if (locale.languageCode == platformLocale.languageCode) {
-        return locale;
-      }
-    }
-    
-    return const Locale('zh', 'CN');
+
+    return "${days}d ${getDateStringLast2(hours)}:${getDateStringLast2(minutes)}:${getDateStringLast2(seconds)}";
   }
 
   Locale? getLocaleForString(String? localString) {
     if (localString == null) return null;
-    var localSplit = localString.split('_');
+    final localSplit = localString.split("_");
     if (localSplit.length == 1) {
       return Locale(localSplit[0]);
     }
@@ -126,10 +111,9 @@ class Utils {
     }
     if (localSplit.length == 3) {
       return Locale.fromSubtags(
-        languageCode: localSplit[0],
-        scriptCode: localSplit[1],
-        countryCode: localSplit[2],
-      );
+          languageCode: localSplit[0],
+          scriptCode: localSplit[1],
+          countryCode: localSplit[2]);
     }
     return null;
   }
@@ -162,90 +146,77 @@ class Utils {
       final number = int.parse(match[1] ?? '0') + 1;
       return label.replaceFirst(reg, '($number)', label.length - 3 - 1);
     } else {
-      return '$label(1)';
+      return "$label(1)";
     }
   }
 
   String getTrayIconPath({
     required Brightness brightness,
-    bool isStart = false,
+    bool isRunning = false,
   }) {
-    if (system.isMacOS) {
-      return 'assets/images/icon_template.png';
+    if (Platform.isMacOS) {
+      // macOS always uses white icon for menu bar
+      return "assets/images/icon_white.png";
     }
-
-    if (system.isLinux) {
-      return 'assets/images/icon.png';
+    
+    // When running - use colored icon
+    if (isRunning) {
+      return "assets/images/icon.ico";
     }
-
-    final suffix = system.isWindows ? 'ico' : 'png';
-
+    
+    // When stopped - use stop icons based on theme
     return switch (brightness) {
-      Brightness.dark =>
-        !isStart
-            ? 'assets/images/icon.$suffix'
-            : 'assets/images/icon_white.$suffix',
-      Brightness.light =>
-        !isStart
-            ? 'assets/images/icon_light.$suffix'
-            : 'assets/images/icon_black.$suffix',
+      Brightness.dark => "assets/images/icon_stop_white.ico",
+      Brightness.light => "assets/images/icon_stop_black.ico",
     };
   }
 
   int compareVersions(String version1, String version2) {
-    List<String> v1 = version1.split('+')[0].split('.');
-    List<String> v2 = version2.split('+')[0].split('.');
-    int major1 = int.parse(v1[0]);
-    int major2 = int.parse(v2[0]);
+    final v1 = version1.split('+')[0].split('.');
+    final v2 = version2.split('+')[0].split('.');
+    final major1 = int.parse(v1[0]);
+    final major2 = int.parse(v2[0]);
     if (major1 != major2) {
       return major1.compareTo(major2);
     }
-    int minor1 = v1.length > 1 ? int.parse(v1[1]) : 0;
-    int minor2 = v2.length > 1 ? int.parse(v2[1]) : 0;
+    final minor1 = v1.length > 1 ? int.parse(v1[1]) : 0;
+    final minor2 = v2.length > 1 ? int.parse(v2[1]) : 0;
     if (minor1 != minor2) {
       return minor1.compareTo(minor2);
     }
-    int patch1 = v1.length > 2 ? int.parse(v1[2]) : 0;
-    int patch2 = v2.length > 2 ? int.parse(v2[2]) : 0;
+    final patch1 = v1.length > 2 ? int.parse(v1[2]) : 0;
+    final patch2 = v2.length > 2 ? int.parse(v2[2]) : 0;
     if (patch1 != patch2) {
       return patch1.compareTo(patch2);
     }
-    int build1 = version1.contains('+') ? int.parse(version1.split('+')[1]) : 0;
-    int build2 = version2.contains('+') ? int.parse(version2.split('+')[1]) : 0;
+    final build1 = version1.contains('+') ? int.parse(version1.split('+')[1]) : 0;
+    final build2 = version2.contains('+') ? int.parse(version2.split('+')[1]) : 0;
     return build1.compareTo(build2);
   }
 
-  String getPinyin(String value) {
-    return value.isNotEmpty
+  String getPinyin(String value) => value.isNotEmpty
         ? PinyinHelper.getFirstWordPinyin(value.substring(0, 1))
-        : '';
-  }
+        : "";
 
   String? getFileNameForDisposition(String? disposition) {
     if (disposition == null) return null;
     final parseValue = HeaderValue.parse(disposition);
     final parameters = parseValue.parameters;
-    final fileNamePointKey = parameters.keys.firstWhere(
-      (key) => key == 'filename*',
-      orElse: () => '',
-    );
+    final fileNamePointKey = parameters.keys
+        .firstWhere((key) => key == "filename*", orElse: () => "");
     if (fileNamePointKey.isNotEmpty) {
       final res = parameters[fileNamePointKey]?.split("''") ?? [];
       if (res.length >= 2) {
         return Uri.decodeComponent(res[1]);
       }
     }
-    final fileNameKey = parameters.keys.firstWhere(
-      (key) => key == 'filename',
-      orElse: () => '',
-    );
+    final fileNameKey = parameters.keys
+        .firstWhere((key) => key == "filename", orElse: () => "");
     if (fileNameKey.isEmpty) return null;
     return parameters[fileNameKey];
   }
 
-  FlutterView getScreen() {
-    return WidgetsBinding.instance.platformDispatcher.views.first;
-  }
+  FlutterView getScreen() => WidgetsBinding.instance.platformDispatcher.views.first;
 
   List<String> parseReleaseBody(String? body) {
     if (body == null) return [];
@@ -273,20 +244,30 @@ class Utils {
     };
   }
 
-  int getProfilesColumns(double viewWidth) {
-    return min(max((viewWidth / 320).floor(), 1), 3);
-  }
+  int getProfilesColumns(double viewWidth) => max((viewWidth / 320).floor(), 1);
 
-  final _indexPrimary = [50, 100, 200, 300, 400, 500, 600, 700, 800, 850, 900];
+  final _indexPrimary = [
+    50,
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    850,
+    900,
+  ];
 
   MaterialColor _createPrimarySwatch(Color color) {
-    final Map<int, Color> swatch = <int, Color>{};
-    final int a = color.alpha8bit;
-    final int r = color.red8bit;
-    final int g = color.green8bit;
-    final int b = color.blue8bit;
-    for (final int strength in _indexPrimary) {
-      final double ds = 0.5 - strength / 1000;
+    final swatch = <int, Color>{};
+    final a = color.alpha8bit;
+    final r = color.red8bit;
+    final g = color.green8bit;
+    final b = color.blue8bit;
+    for (final strength in _indexPrimary) {
+      final ds = 0.5 - strength / 1000;
       swatch[strength] = Color.fromARGB(
         a,
         r + ((ds < 0 ? r : (255 - r)) * ds).round(),
@@ -322,24 +303,21 @@ class Utils {
     ];
   }
 
-  String getBackupFileName() {
-    return '${appName}_backup_${DateTime.now().show}.zip';
-  }
+  String getBackupFileName() => "${appName}_backup_${DateTime.now().show}.zip";
 
-  String get logFile {
-    return '${appName}_${DateTime.now().show}.log';
-  }
+  String get logFile => "${appName}_${DateTime.now().show}.log";
 
   Future<String?> getLocalIpAddress() async {
-    List<NetworkInterface> interfaces =
-        await NetworkInterface.list(includeLoopback: false)
-          ..sort((a, b) {
-            if (a.isWifi && !b.isWifi) return -1;
-            if (!a.isWifi && b.isWifi) return 1;
-            if (a.includesIPv4 && !b.includesIPv4) return -1;
-            if (!a.includesIPv4 && b.includesIPv4) return 1;
-            return 0;
-          });
+    final interfaces = await NetworkInterface.list(
+      includeLoopback: false,
+    )
+      ..sort((a, b) {
+        if (a.isWifi && !b.isWifi) return -1;
+        if (!a.isWifi && b.isWifi) return 1;
+        if (a.includesIPv4 && !b.includesIPv4) return -1;
+        if (!a.includesIPv4 && b.includesIPv4) return 1;
+        return 0;
+      });
     for (final interface in interfaces) {
       final addresses = interface.addresses;
       if (addresses.isEmpty) {
@@ -352,31 +330,73 @@ class Utils {
       });
       return addresses.first.address;
     }
-    return '';
+    return "";
   }
 
   SingleActivator controlSingleActivator(LogicalKeyboardKey trigger) {
-    final control = system.isMacOS ? false : true;
-    return SingleActivator(trigger, control: control, meta: !control);
+    final control = Platform.isMacOS ? false : true;
+    return SingleActivator(
+      trigger,
+      control: control,
+      meta: !control,
+    );
   }
 
+  // dynamic convertYamlNode(dynamic node) {
+  //   if (node is YamlMap) {
+  //     final map = <String, dynamic>{};
+  //     YamlNode? mergeKeyNode;
+  //     for (final entry in node.nodes.entries) {
+  //       if (entry.key is YamlScalar &&
+  //           (entry.key as YamlScalar).value == '<<') {
+  //         mergeKeyNode = entry.value;
+  //         break;
+  //       }
+  //     }
+  //     if (mergeKeyNode != null) {
+  //       final mergeValue = mergeKeyNode.value;
+  //       if (mergeValue is YamlMap) {
+  //         map.addAll(convertYamlNode(mergeValue) as Map<String, dynamic>);
+  //       } else if (mergeValue is YamlList) {
+  //         for (final node in mergeValue.nodes) {
+  //           if (node.value is YamlMap) {
+  //             map.addAll(convertYamlNode(node.value) as Map<String, dynamic>);
+  //           }
+  //         }
+  //       }
+  //     }
+  //
+  //     node.nodes.forEach((key, value) {
+  //       String stringKey;
+  //       if (key is YamlScalar) {
+  //         stringKey = key.value.toString();
+  //       } else {
+  //         stringKey = key.toString();
+  //       }
+  //       map[stringKey] = convertYamlNode(value.value);
+  //     });
+  //     return map;
+  //   } else if (node is YamlList) {
+  //     final list = <dynamic>[];
+  //     for (final item in node.nodes) {
+  //       list.add(convertYamlNode(item.value));
+  //     }
+  //     return list;
+  //   } else if (node is YamlScalar) {
+  //     return node.value;
+  //   }
+  //   return node;
+  // }
 
-  FutureOr<T> handleWatch<T>(Function function) async {
+  FutureOr<T> handleWatch<T>(FutureOr<T> Function() function) async {
     if (kDebugMode) {
       final stopwatch = Stopwatch()..start();
       final res = await function();
       stopwatch.stop();
-      commonPrint.log('Time：${stopwatch.elapsedMilliseconds} ms');
+      commonPrint.log('耗时：${stopwatch.elapsedMilliseconds} ms');
       return res;
     }
     return await function();
-  }
-
-  String generateSecret() {
-    final random = Random();
-    // Generate an 8-digit number (10000000 to 99999999)
-    final secret = 10000000 + random.nextInt(90000000);
-    return secret.toString();
   }
 }
 

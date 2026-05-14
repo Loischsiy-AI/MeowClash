@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:meow_clash/common/common.dart';
-import 'package:meow_clash/plugins/app.dart';
-import 'package:meow_clash/state.dart';
-import 'package:meow_clash/widgets/activate_box.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flclashx/common/common.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ScanPage extends StatefulWidget {
@@ -15,299 +14,137 @@ class ScanPage extends StatefulWidget {
   State<ScanPage> createState() => _ScanPageState();
 }
 
-class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
-  MobileScannerController controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    formats: const [BarcodeFormat.qrCode],
-    autoStart: false, // Disable autoStart to manually control initialization
-  );
+class _ScanPageState extends State<ScanPage> {
+  final MobileScannerController _scannerController = MobileScannerController();
+  bool _isScanComplete = false;
 
-  StreamSubscription<Object?>? _subscription;
-  bool _permissionDenied = false;
-  bool _permissionChecking = false;
+  void _handleBarcode(BarcodeCapture capture) {
+    if (_isScanComplete) return;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _subscription = controller.barcodes.listen(_handleBarcode);
-    // Check permission and start camera
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkCameraPermission();
-    });
-  }
+    final rawValue = capture.barcodes.first.rawValue;
 
-  void _handleBarcode(BarcodeCapture barcodeCapture) {
-    final barcode = barcodeCapture.barcodes.first;
-    if (barcode.type == BarcodeType.url) {
-      Navigator.pop<String>(context, barcode.rawValue);
-    } else {
-      Navigator.pop(context);
+    if (rawValue != null && rawValue.isNotEmpty) {
+      setState(() {
+        _isScanComplete = true;
+      });
+      Navigator.pop<String>(context, rawValue);
     }
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    switch (state) {
-      case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
-      case AppLifecycleState.paused:
-        return;
-      case AppLifecycleState.resumed:
-        _subscription ??= controller.barcodes.listen(_handleBarcode);
-        // Recheck permission when returning from settings
-        _checkCameraPermission();
-        return;
-      case AppLifecycleState.inactive:
-        unawaited(_subscription?.cancel());
-        _subscription = null;
-        if (controller.value.isRunning) {
-          unawaited(controller.stop());
-        }
-        return;
-    }
-  }
+  Future<void> _scanFromImage() async {
+    String? imagePath;
 
-  Future<void> _checkCameraPermission() async {
-    if (_permissionChecking) return; // Prevent concurrent checks
-    
-    setState(() {
-      _permissionChecking = true;
-    });
-    
-    final granted = await app.hasCameraPermission();
-    if (!mounted) return;
-    
-    setState(() {
-      _permissionDenied = !granted;
-      _permissionChecking = false;
-    });
-    
-    if (!granted) {
-      if (controller.value.isRunning) {
-        await controller.stop();
+    if (system.isDesktop) {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+      );
+      if (result != null && result.files.single.path != null) {
+        imagePath = result.files.single.path;
       }
-    } else {
-      // Start camera only if not already running
-      if (!controller.value.isRunning && !controller.value.isInitialized) {
-        try {
-          await controller.start();
-        } catch (e) {
-          // Handle start error silently
-          commonPrint.log('Camera start error: $e');
+    } 
+
+    else {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        imagePath = image.path;
+      }
+    }
+
+    if (imagePath != null) {
+      final result = await _scannerController.analyzeImage(imagePath);
+      if (result != null && result.barcodes.isNotEmpty) {
+        _handleBarcode(result);
+      } else {
+        if (mounted) {
+          context.showNotifier(appLocalizations.qrNotFound);
         }
       }
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    double sideLength = min(400, MediaQuery.of(context).size.width * 0.67);
-    final scanWindow = Rect.fromCenter(
-      center: MediaQuery.sizeOf(context).center(Offset.zero),
-      width: sideLength,
-      height: sideLength,
-    );
-    return Scaffold(
-      body: Stack(
-        children: [
-          Center(
-            child: _permissionChecking
-                ? Container(color: Colors.black)
-                : (_permissionDenied
-                      ? _buildPermissionDeniedView(context)
-                      : MobileScanner(
-                          controller: controller,
-                          scanWindow: scanWindow,
-                          errorBuilder: (context, error) {
-                            if (error.errorCode ==
-                                MobileScannerErrorCode.permissionDenied) {
-                              if (!_permissionDenied && mounted) {
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _permissionDenied = true;
-                                  });
-                                });
-                              }
-                              unawaited(controller.stop());
-                              return _buildPermissionDeniedView(context);
-                            }
-                            return _buildErrorView(context, error);
-                          },
-                        )),
-          ),
-          if (!_permissionDenied)
-            CustomPaint(painter: ScannerOverlay(scanWindow: scanWindow)),
-          AppBar(
-            backgroundColor: Colors.transparent,
-            automaticallyImplyLeading: false,
-            leading: IconButton(
-              style: const ButtonStyle(
-                iconSize: WidgetStatePropertyAll(32),
-                foregroundColor: WidgetStatePropertyAll(Colors.white),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              icon: const Icon(Icons.close),
-            ),
-            actions: [
-              if (!_permissionDenied)
-                ValueListenableBuilder<MobileScannerState>(
-                  valueListenable: controller,
-                  builder: (context, state, _) {
-                    var icon = const Icon(Icons.flash_off);
-                    var backgroundColor = Colors.black12;
-                    switch (state.torchState) {
-                      case TorchState.off:
-                        icon = const Icon(Icons.flash_off);
-                        backgroundColor = Colors.black12;
-                      case TorchState.on:
-                        icon = const Icon(Icons.flash_on);
-                        backgroundColor = Colors.orange;
-                      case TorchState.unavailable:
-                        icon = const Icon(Icons.flash_off);
-                        backgroundColor = Colors.transparent;
-                      case TorchState.auto:
-                        icon = const Icon(Icons.flash_auto);
-                        backgroundColor = Colors.orange;
-                    }
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 8),
-                      child: ActivateBox(
-                        active: state.torchState != TorchState.unavailable,
-                        child: IconButton(
-                          color: Colors.white,
-                          icon: icon,
-                          style: ButtonStyle(
-                            foregroundColor: const WidgetStatePropertyAll(
-                              Colors.white,
-                            ),
-                            backgroundColor: WidgetStatePropertyAll(
-                              backgroundColor,
-                            ),
-                          ),
-                          onPressed: () => controller.toggleTorch(),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-            ],
-          ),
-          if (!_permissionDenied)
-            Container(
-              margin: const EdgeInsets.only(bottom: 32),
-              alignment: Alignment.bottomCenter,
-              child: IconButton(
-                color: Colors.white,
-                style: const ButtonStyle(
-                  foregroundColor: WidgetStatePropertyAll(Colors.white),
-                  backgroundColor: WidgetStatePropertyAll(Colors.grey),
-                ),
-                padding: const EdgeInsets.all(16),
-                iconSize: 32.0,
-                onPressed: globalState.appController.addProfileFormQrCode,
-                icon: const Icon(Icons.photo_camera_back),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建权限被拒绝的视图
-  Widget _buildPermissionDeniedView(BuildContext context) {
-    return Container(
-      color: Colors.black,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.camera_alt_outlined,
-                size: 80,
-                color: Colors.white54,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                appLocalizations.cameraPermissionDenied,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                appLocalizations.cameraPermissionDesc,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Build error view
-  Widget _buildErrorView(BuildContext context, MobileScannerException error) {
-    String errorMessage = 'Camera init failed';
-    switch (error.errorCode) {
-      case MobileScannerErrorCode.controllerUninitialized:
-        errorMessage = 'Camera uninitialized';
-        break;
-      case MobileScannerErrorCode.genericError:
-        errorMessage = 'Camera error';
-        break;
-      case MobileScannerErrorCode.unsupported:
-        errorMessage = 'Scan not supported';
-        break;
-      default:
-        errorMessage = error.errorDetails?.message ?? 'Unknown error';
-    }
-
-    return Container(
-      color: Colors.black,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 80, color: Colors.red),
-              const SizedBox(height: 24),
-              Text(
-                errorMessage,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    unawaited(_subscription?.cancel());
-    _subscription = null;
-    unawaited(controller.dispose());
+    _scannerController.dispose();
     super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double sideLength = min(400, MediaQuery.of(context).size.width * 0.67);
+    
+    final screenSize = MediaQuery.of(context).size;
+    final scanWindow = Rect.fromCenter(
+      center: Offset(screenSize.width / 2, screenSize.height / 2),
+      width: sideLength,
+      height: sideLength,
+    );
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: _scannerController,
+            scanWindow: scanWindow,
+            onDetect: _handleBarcode,
+          ),
+          CustomPaint(
+            painter: ScannerOverlay(scanWindow: scanWindow),
+          ),
+          AppBar(
+            backgroundColor: Colors.transparent,
+            leading: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            actions: [
+              IconButton(
+                color: Colors.white,
+                icon: ValueListenableBuilder<MobileScannerState>(
+                  valueListenable: _scannerController,
+                  builder: (context, state, child) {
+                    switch (state.torchState) {
+                      case TorchState.off:
+                        return const Icon(Icons.flash_off, color: Colors.grey);
+                      case TorchState.on:
+                        return const Icon(Icons.flash_on, color: Colors.yellow);
+                      case TorchState.unavailable:
+                      default:
+                        return const Icon(Icons.no_flash, color: Colors.grey);
+                    }
+                  },
+                ),
+                onPressed: _scannerController.toggleTorch,
+              ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 32.0),
+              child: IconButton(
+                color: Colors.white,
+                style: ButtonStyle(
+                  backgroundColor: WidgetStateProperty.all(Colors.black.withValues(alpha: 0.5)),
+                ),
+                padding: const EdgeInsets.all(16),
+                iconSize: 32.0,
+                onPressed: _scanFromImage,
+                icon: const Icon(Icons.photo_library_outlined),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
 class ScannerOverlay extends CustomPainter {
-  const ScannerOverlay({required this.scanWindow, this.borderRadius = 12.0});
+  const ScannerOverlay({
+    required this.scanWindow,
+    this.borderRadius = 12.0,
+  });
 
   final Rect scanWindow;
   final double borderRadius;
@@ -328,7 +165,7 @@ class ScannerOverlay extends CustomPainter {
       );
 
     final backgroundPaint = Paint()
-      ..color = Colors.black.opacity50
+      ..color = Colors.black.withValues(alpha: 0.5)
       ..style = PaintingStyle.fill
       ..blendMode = BlendMode.dstOut;
 
@@ -356,8 +193,6 @@ class ScannerOverlay extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(ScannerOverlay oldDelegate) {
-    return scanWindow != oldDelegate.scanWindow ||
+  bool shouldRepaint(ScannerOverlay oldDelegate) => scanWindow != oldDelegate.scanWindow ||
         borderRadius != oldDelegate.borderRadius;
-  }
 }
