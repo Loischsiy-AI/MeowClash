@@ -1,10 +1,29 @@
 import 'package:flclashx/common/common.dart';
 import 'package:flclashx/pages/scan.dart';
+import 'package:flclashx/services/subscription_crypto.dart';
 import 'package:flclashx/state.dart';
 import 'package:flclashx/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'receive_profile_dialog.dart';
+
+/// Result returned by [URLFormDialog].
+///
+/// Holds the subscription URL plus optional decryption parameters used
+/// when the subscription file is encrypted with the companion
+/// `crypto.py` AES-256-CBC helper.
+class URLFormResult {
+  const URLFormResult({
+    required this.url,
+    this.password,
+
+    this.iterations,
+  });
+
+  final String url;
+  final String? password;
+  final int? iterations;
+}
 
 class AddProfileView extends StatelessWidget {
 
@@ -18,8 +37,17 @@ class AddProfileView extends StatelessWidget {
     globalState.appController.addProfileFormFile();
   }
 
-  Future<void> _handleAddProfileFormURL(String url) async {
-    globalState.appController.addProfileFormURL(url);
+  Future<void> _handleAddProfileFormURL(
+    String url, {
+    String? password,
+    int? iterations,
+  }) async {
+    globalState.appController.addProfileFormURL(
+      url,
+      decryptionPassword: password,
+      decryptionIterations: iterations,
+
+    );
   }
 
   Future<void> _toScan() async {
@@ -39,11 +67,16 @@ class AddProfileView extends StatelessWidget {
   }
 
   Future<void> _toAdd() async {
-    final url = await globalState.showCommonDialog<String>(
+    final result = await globalState.showCommonDialog<URLFormResult>(
       child: const URLFormDialog(),
     );
-    if (url != null) {
-      _handleAddProfileFormURL(url);
+    if (result != null) {
+      _handleAddProfileFormURL(
+        result.url,
+        password: result.password,
+
+        iterations: result.iterations,
+      );
     }
   }
 
@@ -104,12 +137,46 @@ class URLFormDialog extends StatefulWidget {
 
 class _URLFormDialogState extends State<URLFormDialog> {
   final urlController = TextEditingController();
+  final passwordController = TextEditingController();
+  final iterationsController = TextEditingController(
+    text: kDefaultPbkdf2Iterations.toString(),
+  );
+  bool _showPassword = false;
+
+  @override
+  void dispose() {
+    urlController.dispose();
+    passwordController.dispose();
+
+    iterationsController.dispose();
+    super.dispose();
+  }
 
   void _handleSubmit() {
     final url = urlController.text.trim();
-    if (url.isNotEmpty) {
-      Navigator.of(context).pop<String>(url);
+    if (url.isEmpty) {
+      return;
     }
+    final password = passwordController.text;
+    final iterationsText = iterationsController.text.trim();
+    final iterations = iterationsText.isEmpty
+        ? null
+        : int.tryParse(iterationsText);
+    if (iterationsText.isNotEmpty &&
+        (iterations == null || iterations <= 0)) {
+      globalState.showNotifier(
+        appLocalizations.profileDecryptIterationsInvalid,
+      );
+      return;
+    }
+    Navigator.of(context).pop<URLFormResult>(
+
+      URLFormResult(
+        url: url,
+        password: password.isEmpty ? null : password,
+        iterations: iterations,
+      ),
+    );
   }
 
   Future<void> _handlePaste() async {
@@ -135,17 +202,59 @@ class _URLFormDialogState extends State<URLFormDialog> {
       ],
       child: Padding(
         padding: const EdgeInsets.only(top: 16.0),
-        child: TextField(
-          controller: urlController,
-          keyboardType: TextInputType.url,
-          autofocus: true,
-          minLines: 1,
-          maxLines: 5,
-          onSubmitted: (_) => _handleSubmit(),
-          decoration: InputDecoration(
-            border: const OutlineInputBorder(),
-            labelText: appLocalizations.url,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: urlController,
+              keyboardType: TextInputType.url,
+              autofocus: true,
+              minLines: 1,
+              maxLines: 5,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: appLocalizations.url,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: !_showPassword,
+              autofillHints: const [AutofillHints.password],
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: appLocalizations.profileDecryptionPassword,
+                helperText:
+                    appLocalizations.profileDecryptionPasswordOptionalHelper,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _showPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _showPassword = !_showPassword;
+                    });
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: iterationsController,
+              keyboardType: TextInputType.number,
+              onSubmitted: (_) => _handleSubmit(),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: appLocalizations.profileDecryptionIterations,
+                helperText:
+                    appLocalizations.profileDecryptionIterationsHelper,
+              ),
+            ),
+
+          ],
         ),
       ),
     );

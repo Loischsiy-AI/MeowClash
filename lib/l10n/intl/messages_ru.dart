@@ -609,6 +609,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "profileDecryptionPassword": MessageLookupByLibrary.simpleMessage(
       "Пароль для расшифровки",
     ),
+    "profileDecryptionPasswordOptionalHelper":
+        MessageLookupByLibrary.simpleMessage(
+
+          "Оставьте пустым для незашифрованных подписок",
+        ),
+    "profileEncryptedPasswordRequired": MessageLookupByLibrary.simpleMessage(
+      "Подписка зашифрована. Пожалуйста, укажите пароль для расшифровки.",
+    ),
     "profileHasUpdate": MessageLookupByLibrary.simpleMessage(
       "Профиль был изменён. Отключить автообновление?",
     ),

@@ -580,6 +580,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "profileDecryptionPassword": MessageLookupByLibrary.simpleMessage(
       "Decryption password",
     ),
+    "profileDecryptionPasswordOptionalHelper":
+        MessageLookupByLibrary.simpleMessage(
+          "Leave empty for unencrypted subscriptions",
+        ),
+    "profileEncryptedPasswordRequired": MessageLookupByLibrary.simpleMessage(
+      "This subscription appears to be encrypted. Please provide the decryption password.",
+
+    ),
     "profileHasUpdate": MessageLookupByLibrary.simpleMessage(
       "The profile has been modified. Do you want to disable auto update?",
     ),

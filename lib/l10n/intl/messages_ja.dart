@@ -438,6 +438,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "profileDecryptionPassword": MessageLookupByLibrary.simpleMessage(
       "復号パスワード",
     ),
+    "profileDecryptionPasswordOptionalHelper":
+        MessageLookupByLibrary.simpleMessage(
+          "暗号化されていないサブスクリプションでは空のままにしてください",
+        ),
+    "profileEncryptedPasswordRequired": MessageLookupByLibrary.simpleMessage(
+
+      "サブスクリプションは暗号化されているようです。復号パスワードを入力してください。",
+    ),
     "profileHasUpdate": MessageLookupByLibrary.simpleMessage(
       "プロファイルが変更されました。自動更新を無効化しますか？",
     ),

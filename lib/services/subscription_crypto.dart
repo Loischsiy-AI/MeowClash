@@ -18,6 +18,18 @@ const int _kIvSize = 16;
 /// AES-256 key size in bytes.
 const int _kKeySize = 32;
 
+/// Raised when a downloaded subscription looks encrypted (its bytes
+/// resemble the AES-256-CBC blob produced by `crypto.py`) but the
+/// caller did not provide a password to decrypt it.
+class SubscriptionPasswordRequiredException implements Exception {
+  const SubscriptionPasswordRequiredException(this.message);
+
+  final String message;
+
+
+  @override
+  String toString() => message;
+}
 /// Decrypts a Base64-encoded blob produced by the companion `crypto.py`
 /// script (AES-256-CBC with a key derived from the supplied password via
 /// PBKDF2HMAC-SHA256).

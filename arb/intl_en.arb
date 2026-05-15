@@ -98,6 +98,8 @@
   "profileDecryption": "Decrypt subscription",
   "profileDecryptionDesc": "Decrypt an encrypted subscription file (AES-256-CBC, key derived via PBKDF2HMAC-SHA256).",
   "profileDecryptionPassword": "Decryption password",
+  "profileDecryptionPasswordOptionalHelper": "Leave empty for unencrypted subscriptions",
+  "profileEncryptedPasswordRequired": "This subscription appears to be encrypted. Please provide the decryption password.",
   "profileDecryptionIterations": "PBKDF2 iterations",
   "profileDecryptionIterationsHelper": "Must match the value used during encryption (default 480000)",
   "profileDecryptionAction": "Decrypt",

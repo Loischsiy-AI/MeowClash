@@ -93,6 +93,8 @@
   "profileDecryption": "サブスクリプションの復号",
   "profileDecryptionDesc": "パスワードを使って暗号化されたサブスクリプションファイルを復号化します（AES-256-CBC, PBKDF2HMAC-SHA256 で鍵を生成）。",
   "profileDecryptionPassword": "復号パスワード",
+  "profileDecryptionPasswordOptionalHelper": "暗号化されていないサブスクリプションでは空のままにしてください",
+  "profileEncryptedPasswordRequired": "サブスクリプションは暗号化されているようです。復号パスワードを入力してください。",
   "profileDecryptionIterations": "PBKDF2 反復回数",
   "profileDecryptionIterationsHelper": "暗号化時に使用した値と一致させてください（デフォルト 480000）",
   "profileDecryptionAction": "復号",

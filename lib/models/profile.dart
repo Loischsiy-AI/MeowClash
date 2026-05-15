@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:flclashx/clash/core.dart';
 import 'package:flclashx/common/common.dart';
 import 'package:flclashx/enum/enum.dart';
+import 'package:flclashx/l10n/l10n.dart';
+import 'package:flclashx/services/subscription_crypto.dart';
 import 'package:flclashx/utils/device_info_service.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -167,7 +169,11 @@ extension ProfileExtension on Profile {
     return (await file.lastModified()).microsecondsSinceEpoch;
   }
 
-  Future<Profile> update({bool shouldSendHeaders = true}) async {
+  Future<Profile> update({
+    bool shouldSendHeaders = true,
+    String? decryptionPassword,
+    int decryptionIterations = kDefaultPbkdf2Iterations,
+  }) async {
     final headers = <String, dynamic>{};
 
     if (shouldSendHeaders) {
@@ -192,6 +198,12 @@ extension ProfileExtension on Profile {
     if (responseData == null) {
       throw Exception("Failed to get profile data from response.");
     }
+
+    final profileData = await _maybeDecrypt(
+      responseData,
+      password: decryptionPassword,
+      iterations: decryptionIterations,
+    );
 
     final providerHeaders = <String, String>{};
     
@@ -229,7 +241,40 @@ extension ProfileExtension on Profile {
       subscriptionInfo: SubscriptionInfo.formHString(userinfo),
       autoUpdateDuration: durationFromHeader ?? autoUpdateDuration,
       providerHeaders: providerHeaders,
-    ).saveFile(responseData);
+    ).saveFile(profileData);
+  }
+
+  /// If [data] looks like an AES-256-CBC payload produced by the
+  /// companion `crypto.py` script, decrypt it with [password] and
+  /// return the plaintext bytes. Otherwise return [data] unchanged.
+  ///
+  /// Throws a [SubscriptionPasswordRequiredException] when the payload
+  /// is encrypted but no [password] was supplied.
+  static Future<Uint8List> _maybeDecrypt(
+    Uint8List data, {
+    required String? password,
+    required int iterations,
+  }) async {
+    final String text;
+    try {
+      text = utf8.decode(data, allowMalformed: false);
+    } on FormatException {
+      return data;
+    }
+    if (!SubscriptionCrypto.looksLikeEncryptedPayload(text)) {
+      return data;
+    }
+    if (password == null || password.isEmpty) {
+      throw SubscriptionPasswordRequiredException(
+        AppLocalizations.current.profileEncryptedPasswordRequired,
+      );
+    }
+    return SubscriptionCrypto.decryptBase64(
+      text,
+      password: password,
+      iterations: iterations,
+
+    );
   }
 
   Future<Profile> saveFile(Uint8List bytes) async {

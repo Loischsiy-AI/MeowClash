@@ -23,6 +23,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'common/common.dart';
 import 'models/models.dart';
 import 'plugins/vpn.dart';
+import 'services/subscription_crypto.dart';
 import 'views/profiles/override_profile.dart';
 
 class AppController {
@@ -1357,7 +1358,11 @@ class AppController {
     return;
   }
 
-  Future<void> addProfileFormURL(String url) async {
+  Future<void> addProfileFormURL(
+    String url, {
+    String? decryptionPassword,
+    int? decryptionIterations,
+  }) async {
     if (globalState.navigatorKey.currentState?.canPop() ?? false) {
       globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
     }
@@ -1370,7 +1375,13 @@ class AppController {
         () async {
           final prefs = await SharedPreferences.getInstance();
           final shouldSend = prefs.getBool('sendDeviceHeaders') ?? true;
-          return Profile.normal(url: url).update(shouldSendHeaders: shouldSend);
+          return Profile.normal(url: url).update(
+            shouldSendHeaders: shouldSend,
+            decryptionPassword: decryptionPassword,
+            decryptionIterations:
+
+                decryptionIterations ?? kDefaultPbkdf2Iterations,
+          );
         },
         title: "${appLocalizations.add}${appLocalizations.profile}",
       );

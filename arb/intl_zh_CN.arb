@@ -93,6 +93,8 @@
   "profileDecryption": "解密订阅",
   "profileDecryptionDesc": "使用密码解密订阅文件 (AES-256-CBC，通过 PBKDF2HMAC-SHA256 从密码派生密钥)。",
   "profileDecryptionPassword": "解密密码",
+  "profileDecryptionPasswordOptionalHelper": "未加密的订阅请留空",
+  "profileEncryptedPasswordRequired": "订阅似乎已加密。请提供解密密码。",
   "profileDecryptionIterations": "PBKDF2 迭代次数",
   "profileDecryptionIterationsHelper": "必须与加密时使用的值一致（默认 480000）",
   "profileDecryptionAction": "解密",

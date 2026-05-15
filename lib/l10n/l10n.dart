@@ -774,6 +774,27 @@ class AppLocalizations {
     );
   }
 
+  /// `Leave empty for unencrypted subscriptions`
+  String get profileDecryptionPasswordOptionalHelper {
+    return Intl.message(
+      'Leave empty for unencrypted subscriptions',
+      name: 'profileDecryptionPasswordOptionalHelper',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This subscription appears to be encrypted. Please provide the decryption password.`
+  String get profileEncryptedPasswordRequired {
+    return Intl.message(
+      'This subscription appears to be encrypted. Please provide the decryption password.',
+      name: 'profileEncryptedPasswordRequired',
+      desc: '',
+      args: [],
+    );
+
+  }
+
   /// `PBKDF2 iterations`
   String get profileDecryptionIterations {
     return Intl.message(

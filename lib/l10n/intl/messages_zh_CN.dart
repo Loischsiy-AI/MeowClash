@@ -385,6 +385,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "profileHasUpdate": MessageLookupByLibrary.simpleMessage(
       "配置文件已经修改,是否关闭自动更新 ",
     ),
+    "profileDecryptionPasswordOptionalHelper":
+        MessageLookupByLibrary.simpleMessage("未加密的订阅请留空"),
+
+    "profileEncryptedPasswordRequired": MessageLookupByLibrary.simpleMessage(
+      "订阅似乎已加密。请提供解密密码。",
+    ),
     "profileNameNullValidationDesc": MessageLookupByLibrary.simpleMessage(
       "请输入配置名称",
     ),

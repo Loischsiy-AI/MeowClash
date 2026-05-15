@@ -59,11 +59,16 @@ class MetainfoWidget extends ConsumerWidget {
     if (allProfiles.isEmpty) {
       return CommonCard(
         onPressed: () async {
-          final url = await globalState.showCommonDialog<String>(
+          final result = await globalState.showCommonDialog<URLFormResult>(
             child: const URLFormDialog(),
           );
-          if (url != null) {
-            globalState.appController.addProfileFormURL(url);
+          if (result != null) {
+            globalState.appController.addProfileFormURL(
+              result.url,
+              decryptionPassword: result.password,
+
+              decryptionIterations: result.iterations,
+            );
           }
         },
         child: Center(

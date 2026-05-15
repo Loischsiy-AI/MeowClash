@@ -98,6 +98,8 @@
   "profileDecryption": "Расшифровка подписки",
   "profileDecryptionDesc": "Расшифровка зашифрованного файла подписки (AES-256-CBC, ключ из пароля через PBKDF2HMAC-SHA256).",
   "profileDecryptionPassword": "Пароль для расшифровки",
+  "profileDecryptionPasswordOptionalHelper": "Оставьте пустым для незашифрованных подписок",
+  "profileEncryptedPasswordRequired": "Подписка зашифрована. Пожалуйста, укажите пароль для расшифровки.",
   "profileDecryptionIterations": "Итерации PBKDF2",
   "profileDecryptionIterationsHelper": "Должно совпадать со значением, использованным при шифровании (по умолчанию 480000)",
   "profileDecryptionAction": "Расшифровать",
