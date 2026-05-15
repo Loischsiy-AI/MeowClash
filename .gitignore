@@ -64,6 +64,7 @@ Example*
 
 #FlClash
 /libclash/
+/plugins/flutter_distributor/
 /android/app/src/main/jniLibs/
 /services/helper/target
 /macos/**/Package.resolved

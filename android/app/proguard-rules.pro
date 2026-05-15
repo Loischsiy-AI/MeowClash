@@ -13,3 +13,8 @@
 
 -dontwarn com.follow.clashx.**
 -dontwarn com.google.gson.**
+-dontwarn javax.xml.stream.**
+-dontwarn javax.xml.bind.**
+-dontwarn javax.annotation.**
+-dontwarn org.apache.**
+-dontwarn kotlinx.coroutines.**
