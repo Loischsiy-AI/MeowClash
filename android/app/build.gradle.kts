@@ -25,7 +25,7 @@ val isRelease = mStoreFile.exists()
 android {
     namespace = "com.follow.clashx"
     compileSdk = 36
-    ndkVersion = "28.0.13004108"
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -40,7 +40,7 @@ android {
     defaultConfig {
         applicationId = "com.follow.clashx"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -100,4 +100,6 @@ dependencies {
         exclude(group = "com.google.guava", module = "guava")
     }
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+}
+ar_jdk_libs:2.0.4")
 }
