@@ -192,7 +192,7 @@ class Build {
       print(utf8.decode(data));
     });
     final exitCode = await process.exitCode;
-    if (exitCode != 0 && name != null) throw "$name error";
+    if (exitCode != 0 && name != null) throw "$name error (exit code: $exitCode)";
   }
 
   static Future<String> calcSha256(String filePath) async {
