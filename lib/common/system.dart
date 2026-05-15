@@ -212,9 +212,12 @@ class System {
   }
 
   Future<void> exit() async {
+    commonPrint.log("System: Exiting application...");
     if (Platform.isAndroid) {
+      commonPrint.log("System: Calling SystemNavigator.pop()");
       await SystemNavigator.pop();
     }
+    commonPrint.log("System: Closing window...");
     await window?.close();
   }
 }

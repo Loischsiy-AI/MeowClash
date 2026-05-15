@@ -1159,73 +1159,122 @@ class AppController {
   }
 
   Future<void> _handlePreference() async {
+    commonPrint.log("AppController: _handlePreference starting...");
     if (await preferences.isInit) {
+      commonPrint.log("AppController: preferences.isInit is true");
       return;
     }
+    commonPrint.log("AppController: preferences.isInit is FALSE, handling corruption...");
     final res = await globalState.showMessage(
       title: appLocalizations.tip,
       message: TextSpan(text: appLocalizations.cacheCorrupt),
     );
     if (res == true) {
-      final file = File(await appPath.sharedPreferencesPath);
+      final path = await appPath.sharedPreferencesPath;
+      commonPrint.log("AppController: Deleting corrupted preferences at $path");
+      final file = File(path);
       final isExists = await file.exists();
       if (isExists) {
         await file.delete();
       }
     }
+    commonPrint.log("AppController: Exiting due to preference corruption");
     await handleExit();
   }
 
   Future<void> _initCore() async {
+    commonPrint.log("AppController: _initCore starting...");
     final isInit = await clashCore.isInit;
+    commonPrint.log("AppController: clashCore.isInit = $isInit");
     if (!isInit) {
+      commonPrint.log("AppController: Calling clashCore.init()...");
       await clashCore.init();
+      commonPrint.log("AppController: Calling clashCore.setState()...");
       await clashCore.setState(
         globalState.getCoreState(),
       );
     }
+    commonPrint.log("AppController: Calling applyProfile()...");
     await applyProfile();
+    commonPrint.log("AppController: _initCore completed");
   }
 
   Future<void> init() async {
-    FlutterError.onError = (details) {
-      commonPrint.log(details.stack.toString());
-    };
-    updateTray(true);
-    await _initCore();
-    await _initStatus();
-    autoLaunch?.updateStatus(
-      _ref.read(appSettingProvider).autoLaunch,
-    );
-    // Delay subscription update to ensure network is ready after app initialization
-    Future.delayed(
-        const Duration(seconds: 1), _updateCurrentProfileSubscription);
-    autoUpdateProfiles();
-    autoCheckUpdate();
-    if (!Platform.isMacOS) {
-      if (!_ref.read(appSettingProvider).silentLaunch) {
-        window?.show();
-      } else {
-        window?.hide();
+    commonPrint.log("AppController: Starting init...");
+    try {
+      FlutterError.onError = (details) {
+        commonPrint.log("=== FlutterError ===");
+        commonPrint.log(details.exception.toString());
+        commonPrint.log(details.stack.toString());
+      };
+      
+      commonPrint.log("AppController: Updating tray...");
+      updateTray(true);
+      
+      commonPrint.log("AppController: Initializing core...");
+      await _initCore();
+      
+      commonPrint.log("AppController: Initializing status...");
+      await _initStatus();
+      
+      commonPrint.log("AppController: Updating auto-launch status...");
+      autoLaunch?.updateStatus(
+        _ref.read(appSettingProvider).autoLaunch,
+      );
+      
+      commonPrint.log("AppController: Scheduling subscription update...");
+      // Delay subscription update to ensure network is ready after app initialization
+      Future.delayed(
+          const Duration(seconds: 1), _updateCurrentProfileSubscription);
+      
+      commonPrint.log("AppController: Starting auto-update profiles...");
+      autoUpdateProfiles();
+      
+      commonPrint.log("AppController: Starting auto-check update...");
+      autoCheckUpdate();
+      
+      if (!Platform.isMacOS) {
+        commonPrint.log("AppController: Handling window visibility...");
+        if (!_ref.read(appSettingProvider).silentLaunch) {
+          window?.show();
+        } else {
+          window?.hide();
+        }
       }
+      
+      commonPrint.log("AppController: Handling preferences...");
+      await _handlePreference();
+      
+      commonPrint.log("AppController: Handling disclaimer...");
+      await _handlerDisclaimer();
+      
+      commonPrint.log("AppController: Setting initProvider to true");
+      _ref.read(initProvider.notifier).value = true;
+      commonPrint.log("AppController: init completed successfully");
+    } catch (e, stackTrace) {
+      commonPrint.log("=== AppController: init FATAL ERROR ===");
+      commonPrint.log("Error: $e");
+      commonPrint.log("StackTrace: $stackTrace");
     }
-    await _handlePreference();
-    await _handlerDisclaimer();
-    _ref.read(initProvider.notifier).value = true;
   }
 
   Future<void> _initStatus() async {
+    commonPrint.log("AppController: _initStatus starting...");
     if (Platform.isAndroid) {
+      commonPrint.log("AppController: Updating start time...");
       await globalState.updateStartTime();
     }
     final status = globalState.isStart == true
         ? true
         : _ref.read(appSettingProvider).autoRun;
 
+    commonPrint.log("AppController: Updating status to $status...");
     await updateStatus(status);
     if (!status) {
+      commonPrint.log("AppController: Adding check IP num debounce...");
       addCheckIpNumDebounce();
     }
+    commonPrint.log("AppController: _initStatus completed");
   }
 
   void setDelay(Delay delay) {

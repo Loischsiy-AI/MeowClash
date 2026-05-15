@@ -32,10 +32,12 @@ class ClashCore {
   Future<bool> preload() => clashInterface.preload();
 
   static Future<void> initGeo() async {
+    commonPrint.log("ClashCore: Starting initGeo...");
     final homePath = await appPath.homeDirPath;
     final homeDir = Directory(homePath);
     final isExists = await homeDir.exists();
     if (!isExists) {
+      commonPrint.log("ClashCore: Creating home directory $homePath");
       await homeDir.create(recursive: true);
     }
     const geoFileNameList = [
@@ -51,31 +53,45 @@ class ClashCore {
         );
         final isExists = await geoFile.exists();
         if (isExists) {
+          commonPrint.log("ClashCore: Geo file $geoFileName already exists, skipping");
           continue;
         }
+        commonPrint.log("ClashCore: Loading $geoFileName from assets...");
         final data = await rootBundle.load('assets/data/$geoFileName');
         final List<int> bytes = data.buffer.asUint8List();
+        commonPrint.log("ClashCore: Writing $geoFileName to $homePath (${bytes.length} bytes)");
         await geoFile.writeAsBytes(bytes, flush: true);
       }
-    } catch (e) {
-      exit(0);
+      commonPrint.log("ClashCore: initGeo completed successfully");
+    } catch (e, stackTrace) {
+      commonPrint.log("=== ClashCore: initGeo FATAL ERROR ===");
+      commonPrint.log("Error: $e");
+      commonPrint.log("StackTrace: $stackTrace");
+      commonPrint.log("Exiting application due to critical initialization failure");
+      await Future.delayed(const Duration(seconds: 1)); // Give time for logs to flush
+      exit(1);
     }
   }
 
   Future<bool> init() async {
+    commonPrint.log("ClashCore: Starting init...");
     await initGeo();
     if (globalState.config.appSetting.openLogs) {
+      commonPrint.log("ClashCore: Starting log...");
       clashCore.startLog();
     } else {
       clashCore.stopLog();
     }
     final homeDirPath = await appPath.homeDirPath;
-    return clashInterface.init(
+    commonPrint.log("ClashCore: Calling clashInterface.init(homeDir=$homeDirPath)...");
+    final result = await clashInterface.init(
       InitParams(
         homeDir: homeDirPath,
         version: globalState.appState.version,
       ),
     );
+    commonPrint.log("ClashCore: clashInterface.init returned $result");
+    return result;
   }
 
   Future<bool> setState(CoreState state) => clashInterface.setState(state);

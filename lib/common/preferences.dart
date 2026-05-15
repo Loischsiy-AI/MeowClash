@@ -14,9 +14,18 @@ class Preferences {
   }
 
   Preferences._internal() {
+    commonPrint.log("Preferences: Initializing SharedPreferences...");
     SharedPreferences.getInstance()
-        .then((value) => sharedPreferencesCompleter.complete(value))
-        .onError((_, __) => sharedPreferencesCompleter.complete(null));
+        .then((value) {
+          commonPrint.log("Preferences: SharedPreferences initialized successfully");
+          sharedPreferencesCompleter.complete(value);
+        })
+        .onError((error, stack) {
+          commonPrint.log("=== Preferences: SharedPreferences FATAL ERROR ===");
+          commonPrint.log("Error: $error");
+          commonPrint.log("StackTrace: $stack");
+          sharedPreferencesCompleter.complete(null);
+        });
   }
   static Preferences? _instance;
   Completer<SharedPreferences?> sharedPreferencesCompleter = Completer();

@@ -194,6 +194,7 @@ class ClashLibHandler {
 
   String getCurrentProfileName() {
     final currentProfileRaw = clashFFI.getCurrentProfileName();
+    if (currentProfileRaw == nullptr) return "";
     final currentProfile = currentProfileRaw.cast<Utf8>().toDartString();
     clashFFI.freeCString(currentProfileRaw);
     return currentProfile;
@@ -201,6 +202,7 @@ class ClashLibHandler {
 
   String getAndroidVpnOptions() {
     final vpnOptionsRaw = clashFFI.getAndroidVpnOptions();
+    if (vpnOptionsRaw == nullptr) return "";
     final vpnOptions = vpnOptionsRaw.cast<Utf8>().toDartString();
     clashFFI.freeCString(vpnOptionsRaw);
     return vpnOptions;
@@ -208,6 +210,7 @@ class ClashLibHandler {
 
   Traffic getTraffic() {
     final trafficRaw = clashFFI.getTraffic();
+    if (trafficRaw == nullptr) return Traffic();
     final trafficString = trafficRaw.cast<Utf8>().toDartString();
     clashFFI.freeCString(trafficRaw);
     if (trafficString.isEmpty) {
@@ -218,6 +221,7 @@ class ClashLibHandler {
 
   Traffic getTotalTraffic(bool value) {
     final trafficRaw = clashFFI.getTotalTraffic();
+    if (trafficRaw == nullptr) return Traffic();
     final trafficString = trafficRaw.cast<Utf8>().toDartString();
     clashFFI.freeCString(trafficRaw);
     if (trafficString.isEmpty) {
@@ -238,7 +242,9 @@ class ClashLibHandler {
 
   DateTime? getRunTime() {
     final runTimeRaw = clashFFI.getRunTime();
+    if (runTimeRaw == nullptr) return null;
     final runTimeString = runTimeRaw.cast<Utf8>().toDartString();
+    clashFFI.freeCString(runTimeRaw);
     if (runTimeString.isEmpty) {
       return null;
     }

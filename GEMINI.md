@@ -2,10 +2,10 @@
 
 ## AI Instructions for this Repo
 
-1. **Context Awareness:** Перед выполнением любой задачи всегда проверяй структуру проекта. Если ты видишь новые технологии, не описанные здесь, предложи обновить этот файл.
-2. **Analysis Mode:** По запросу "Analyze and Update GEMINI.md" ты должен заново просканировать весь проект, выявить изменения в архитектуре и актуализировать разделы Tech Stack и Project Structure.
-3. **Consistency:** Всегда следуй паттернам, которые уже реализованы в папке `/src` (или аналогичной). Не предлагай сторонние библиотеки, если в проекте уже есть встроенное решение.
-4. **Recursive Improvement:** Ты имеешь право редактировать этот файл, если считаешь, что добавление нового правила улучшит качество твоей работы с текущим кодом.
+1. **Context Awareness:** Before performing any task, always review the project structure. If you notice new technologies not described here, suggest updating this file.
+2. **Analysis Mode:** When prompted to “Analyze and Update GEMINI.md,” you must rescan the entire project, identify changes in the architecture, and update the Tech Stack and Project Structure sections.
+3. **Consistency:** Always follow the patterns already implemented in the `/src` folder (or equivalent). Do not suggest third-party libraries if the project already has a built-in solution.
+4. **Recursive Improvement:** You are permitted to edit this file if you believe that adding a new rule will improve the quality of your work with the current code.
 
 ## Project Context
 
