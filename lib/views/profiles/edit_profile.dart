@@ -51,9 +51,10 @@ class _EditProfileViewState extends State<EditProfileView> {
     autoUpdateDurationController = TextEditingController(
       text: widget.profile.autoUpdateDuration.inMinutes.toString(),
     );
-    decryptPasswordController = TextEditingController();
+    decryptPasswordController =
+        TextEditingController(text: widget.profile.password);
     decryptIterationsController = TextEditingController(
-      text: kDefaultPbkdf2Iterations.toString(),
+      text: widget.profile.passwordIterations.toString(),
     );
     appPath.getProfilePath(widget.profile.id).then((path) async {
       fileInfoNotifier.value = await _getFileInfo(path);
@@ -74,6 +75,12 @@ class _EditProfileViewState extends State<EditProfileView> {
   Future<void> _handleConfirm() async {
     if (!_formKey.currentState!.validate()) return;
     final appController = globalState.appController;
+    final password = decryptPasswordController.text;
+    final iterationsText = decryptIterationsController.text.trim();
+    final iterations = iterationsText.isEmpty
+        ? kDefaultPbkdf2Iterations
+        : int.tryParse(iterationsText) ?? kDefaultPbkdf2Iterations;
+
     var profile = this.profile.copyWith(
           url: urlController.text,
           label: labelController.text,
@@ -83,6 +90,8 @@ class _EditProfileViewState extends State<EditProfileView> {
               autoUpdateDurationController.text,
             ),
           ),
+          password: password.isEmpty ? null : password,
+          passwordIterations: iterations,
         );
     final hasUpdate = widget.profile.url != profile.url;
     if (fileData != null) {

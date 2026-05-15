@@ -65,6 +65,8 @@ class Profile with _$Profile {
     @Default(false)
     bool isUpdating,
     @Default({}) Map<String, String> providerHeaders,
+    String? password,
+    @Default(kDefaultPbkdf2Iterations) int passwordIterations,
   }) = _Profile;
 
   factory Profile.fromJson(Map<String, Object?> json) =>
@@ -172,7 +174,7 @@ extension ProfileExtension on Profile {
   Future<Profile> update({
     bool shouldSendHeaders = true,
     String? decryptionPassword,
-    int decryptionIterations = kDefaultPbkdf2Iterations,
+    int? decryptionIterations,
   }) async {
     final headers = <String, dynamic>{};
 
@@ -201,8 +203,8 @@ extension ProfileExtension on Profile {
 
     final profileData = await _maybeDecrypt(
       responseData,
-      password: decryptionPassword,
-      iterations: decryptionIterations,
+      password: decryptionPassword ?? password,
+      iterations: decryptionIterations ?? passwordIterations,
     );
 
     final providerHeaders = <String, String>{};

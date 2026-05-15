@@ -1375,13 +1375,15 @@ class AppController {
         () async {
           final prefs = await SharedPreferences.getInstance();
           final shouldSend = prefs.getBool('sendDeviceHeaders') ?? true;
-          return Profile.normal(url: url).update(
-            shouldSendHeaders: shouldSend,
-            decryptionPassword: decryptionPassword,
-            decryptionIterations:
-
-                decryptionIterations ?? kDefaultPbkdf2Iterations,
-          );
+          return Profile.normal(url: url)
+              .copyWith(
+                password: decryptionPassword,
+                passwordIterations:
+                    decryptionIterations ?? kDefaultPbkdf2Iterations,
+              )
+              .update(
+                shouldSendHeaders: shouldSend,
+              );
         },
         title: "${appLocalizations.add}${appLocalizations.profile}",
       );
