@@ -196,13 +196,17 @@ func handleGetCurrentProfileName() string {
 }
 
 func nextHandle(action *Action, result ActionResult) bool {
+	dataStr, dataIsStr := action.Data.(string)
 	switch action.Method {
 	case getAndroidVpnOptionsMethod:
 		result.success(handleGetAndroidVpnOptions())
 		return true
 	case updateDnsMethod:
-		data := action.Data.(string)
-		handleUpdateDns(data)
+		if !dataIsStr {
+			result.error("invalid data type")
+			return true
+		}
+		handleUpdateDns(dataStr)
 		result.success(true)
 		return true
 	case getRunTimeMethod:

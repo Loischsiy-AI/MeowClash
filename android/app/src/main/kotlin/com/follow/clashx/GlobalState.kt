@@ -184,7 +184,6 @@ object GlobalState {
             Log.d("GlobalState", "Creating new serviceEngine")
             serviceEngine = FlutterEngine(FlClashXApplication.getAppContext())
             Log.d("GlobalState", "Registering plugins")
-            io.flutter.plugins.GeneratedPluginRegistrant.registerWith(serviceEngine!!)
             serviceEngine?.plugins?.add(VpnPlugin)
             serviceEngine?.plugins?.add(AppPlugin())
             serviceEngine?.plugins?.add(TilePlugin())

@@ -9,10 +9,19 @@ import "C"
 import (
 	bridge "core/dart-bridge"
 	"encoding/json"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
-var messagePort int64 = -1
+var messagePort atomic.Int64
+
+func init() {
+	messagePort.Store(-1)
+}
+
+var proxyDescLock sync.RWMutex
 
 //export initNativeApiBridge
 func initNativeApiBridge(api unsafe.Pointer) {
@@ -21,7 +30,7 @@ func initNativeApiBridge(api unsafe.Pointer) {
 
 //export attachMessagePort
 func attachMessagePort(mPort C.longlong) {
-	messagePort = int64(mPort)
+	messagePort.Store(int64(mPort))
 }
 
 //export getTraffic
@@ -62,16 +71,24 @@ func invokeAction(paramsChar *C.char, port C.longlong) {
 		Method: action.Method,
 		Port:   i,
 	}
-	go handleAction(action, result)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				result.error(fmt.Sprintf("panic: %v", r))
+			}
+		}()
+		handleAction(action, result)
+	}()
 }
 
 func sendMessage(message Message) {
-	if messagePort == -1 {
+	port := messagePort.Load()
+	if port == -1 {
 		return
 	}
 	result := ActionResult{
 		Method: messageMethod,
-		Port:   messagePort,
+		Port:   port,
 		Data:   message,
 	}
 	result.send()

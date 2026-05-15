@@ -90,11 +90,16 @@ func extractProxyDescriptionsFromRaw(rawConfig *config.RawConfig) {
 		}
 		descriptions[name] = description
 	}
+	proxyDescLock.Lock()
 	proxyDescriptions = descriptions
+	proxyDescLock.Unlock()
 }
 
 // proxiesWithDescriptions injects serverDescription for each proxy in API response.
 func proxiesWithDescriptions() map[string]interface{} {
+	proxyDescLock.RLock()
+	descSnapshot := proxyDescriptions
+	proxyDescLock.RUnlock()
 	result := make(map[string]interface{})
 	for name, proxy := range proxiesWithProviders() {
 		data, err := json.Marshal(proxy)
@@ -105,7 +110,7 @@ func proxiesWithDescriptions() map[string]interface{} {
 		if err := json.Unmarshal(data, &item); err != nil {
 			continue
 		}
-		if desc, ok := proxyDescriptions[name]; ok && desc != "" {
+		if desc, ok := descSnapshot[name]; ok && desc != "" {
 			item["serverDescription"] = desc
 		}
 		result[name] = item

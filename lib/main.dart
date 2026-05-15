@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
-import 'dart:isolate';
+import 'dart:isolate' show Isolate, IsolateNameServer, ReceivePort, SendPort;
 import 'dart:ui';
 
 import 'package:flclashx/enum/enum.dart';
@@ -63,19 +63,29 @@ Future<void> _service(List<String> flags) async {
   final clashLibHandler = ClashLibHandler();
   commonPrint.log("[DART] ClashLibHandler created");
   
+  bool initSuccess = false;
   commonPrint.log("[DART] BEFORE try-catch block");
   try {
     commonPrint.log("[DART] Calling globalState.init()...");
     await globalState.init();
+    initSuccess = true;
     commonPrint.log("[DART] globalState.init() completed");
   } catch (e, stackTrace) {
     commonPrint.log("=== [DART] _service ERROR during globalState.init() ===");
     commonPrint.log("[DART] Error: $e");
     commonPrint.log("[DART] StackTrace: $stackTrace");
     commonPrint.log("[DART] Continuing execution anyway...");
-    // Don't rethrow - continue to add listeners
   }
-  commonPrint.log("[DART] AFTER try-catch block");
+  commonPrint.log("[DART] AFTER try-catch block (initSuccess=$initSuccess)");
+
+  if (!initSuccess) {
+    commonPrint.log("[DART] init failed, signaling service ready but skipping listeners");
+    try {
+      await tile?.signalServiceReady();
+    } catch (_) {}
+    Isolate.current.kill(priority: Isolate.immediate);
+    return;
+  }
 
   commonPrint.log("[DART] Adding tile listener...");
   tile?.addListener(
@@ -196,7 +206,8 @@ Future<void> _service(List<String> flags) async {
             } catch (e) {
               debugPrint("Tile vpn.stop() error (ignored): $e");
             }
-            exit(0);
+            Isolate.current.kill(priority: Isolate.immediate);
+            return;
           }
           
           commonPrint.log("TileService: Starting VPN service");
@@ -224,7 +235,8 @@ Future<void> _service(List<String> flags) async {
           } catch (stopError) {
             debugPrint("Tile vpn.stop() error (ignored): $stopError");
           }
-          exit(0);
+          Isolate.current.kill(priority: Isolate.immediate);
+          return;
         }
       },
       onStop: () async {
@@ -237,11 +249,9 @@ Future<void> _service(List<String> flags) async {
         try {
           await vpn?.stop();
         } catch (e) {
-          // MissingPluginException may occur if VpnPlugin not yet attached
-          // VPN will be stopped by native side via VpnPlugin.handleStop()
           debugPrint("Tile vpn.stop() error (ignored): $e");
         }
-        exit(0);
+        Isolate.current.kill(priority: Isolate.immediate);
       },
     ),
   );
@@ -350,15 +360,18 @@ void _handleMainIpc(ClashLibHandler clashLibHandler) {
   if (sendPort == null) {
     return;
   }
+  void safeSend(dynamic message) {
+    try {
+      sendPort.send(message);
+    } catch (_) {}
+  }
   final serviceReceiverPort = ReceivePort();
   serviceReceiverPort.listen((message) async {
-    // Handle special IPC messages for foreground notification updates
     if (message is Map<String, dynamic>) {
       final action = message['action'];
       if (action == 'updateForegroundServer') {
         final serverName = message['serverName'] as String? ?? '';
         final groupName = message['groupName'] as String? ?? '';
-        // Update selectedMap in globalState.config
         final profile = globalState.config.currentProfile;
         if (profile != null && groupName.isNotEmpty) {
           final newSelectedMap = Map<String, String>.from(profile.selectedMap);
@@ -370,19 +383,19 @@ void _handleMainIpc(ClashLibHandler clashLibHandler) {
             ).toList(),
           );
         }
-        sendPort.send({'success': true});
+        safeSend({'success': true});
         return;
       }
     }
     final res = await clashLibHandler.invokeAction(message);
-    sendPort.send(res);
+    safeSend(res);
   });
-  sendPort.send(serviceReceiverPort.sendPort);
+  safeSend(serviceReceiverPort.sendPort);
   final messageReceiverPort = ReceivePort();
   clashLibHandler.attachMessagePort(
     messageReceiverPort.sendPort.nativePort,
   );
-  messageReceiverPort.listen(sendPort.send);
+  messageReceiverPort.listen(safeSend);
 }
 
 @immutable
