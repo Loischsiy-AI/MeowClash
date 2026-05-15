@@ -1,5 +1,6 @@
 #ifdef LIBCLASH
 #include <jni.h>
+#include <cstring>
 #include "jni_helper.h"
 #include "libclash.h"
 
