@@ -83,9 +83,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/data/geoip.metadb
-    - assets/data/GeoIP.dat
-    - assets/data/GeoSite.dat
-    - assets/data/ASN.mmdb
+    - assets/data/geoip.dat
+    - assets/data/geosite.dat
+    - assets/data/asn.mmdb
     - assets/fonts/
     - assets/images/
     - assets/images/avatars/

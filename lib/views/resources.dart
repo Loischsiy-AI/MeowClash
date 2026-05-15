@@ -57,14 +57,14 @@ class _ResourcesViewState extends ConsumerState<ResourcesView> {
     });
 
     try {
-      setState(() => _currentlyUpdating = "GeoIP.dat");
+      setState(() => _currentlyUpdating = "geoip.dat");
       try {
-        final result1 = await clashCore.updateGeoData(const UpdateGeoDataParams(geoType: "GeoIp", geoName: "GeoIP.dat"));
+        final result1 = await clashCore.updateGeoData(const UpdateGeoDataParams(geoType: "GeoIp", geoName: "geoip.dat"));
         if (result1.isNotEmpty) {
-          throw Exception("GeoIP.dat: $result1");
+          throw Exception("geoip.dat: $result1");
         }
       } catch (e) {
-        commonPrint.log("Failed to update GeoIP.dat: $e");
+        commonPrint.log("Failed to update geoip.dat: $e");
       }
       
       setState(() => _currentlyUpdating = "geoip.metadb");
@@ -77,24 +77,24 @@ class _ResourcesViewState extends ConsumerState<ResourcesView> {
         commonPrint.log("Failed to update geoip.metadb: $e");
       }
       
-      setState(() => _currentlyUpdating = "GeoSite.dat");
+      setState(() => _currentlyUpdating = "geosite.dat");
       try {
-        final result3 = await clashCore.updateGeoData(const UpdateGeoDataParams(geoType: "GeoSite", geoName: "GeoSite.dat"));
+        final result3 = await clashCore.updateGeoData(const UpdateGeoDataParams(geoType: "GeoSite", geoName: "geosite.dat"));
         if (result3.isNotEmpty) {
-          throw Exception("GeoSite.dat: $result3");
+          throw Exception("geosite.dat: $result3");
         }
       } catch (e) {
-        commonPrint.log("Failed to update GeoSite.dat: $e");
+        commonPrint.log("Failed to update geosite.dat: $e");
       }
       
-      setState(() => _currentlyUpdating = "ASN.mmdb");
+      setState(() => _currentlyUpdating = "asn.mmdb");
       try {
-        final result4 = await clashCore.updateGeoData(const UpdateGeoDataParams(geoType: "ASN", geoName: "ASN.mmdb"));
+        final result4 = await clashCore.updateGeoData(const UpdateGeoDataParams(geoType: "ASN", geoName: "asn.mmdb"));
         if (result4.isNotEmpty) {
-          throw Exception("ASN.mmdb: $result4");
+          throw Exception("asn.mmdb: $result4");
         }
       } catch (e) {
-        commonPrint.log("Failed to update ASN.mmdb: $e");
+        commonPrint.log("Failed to update asn.mmdb: $e");
       }
     } finally {
       if (mounted) {

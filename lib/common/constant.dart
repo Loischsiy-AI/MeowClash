@@ -32,9 +32,9 @@ const midDuration = Duration(milliseconds: 200);
 const commonDuration = Duration(milliseconds: 300);
 const defaultUpdateDuration = Duration(days: 1);
 const mmdbFileName = "geoip.metadb";
-const asnFileName = "ASN.mmdb";
-const geoIpFileName = "GeoIP.dat";
-const geoSiteFileName = "GeoSite.dat";
+const asnFileName = "asn.mmdb";
+const geoIpFileName = "geoip.dat";
+const geoSiteFileName = "geosite.dat";
 final double kHeaderHeight = system.isDesktop
     ? !Platform.isMacOS
         ? 40
