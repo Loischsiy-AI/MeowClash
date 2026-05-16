@@ -8,9 +8,6 @@ import 'package:flclashx/common/common.dart';
 import 'package:flclashx/models/core.dart';
 import 'package:flclashx/state.dart';
 
-ActionResult _decodeActionResult(String message) =>
-    ActionResult.fromJson(json.decode(message));
-
 class ClashService extends ClashHandlerInterface {
 
   factory ClashService() {
@@ -58,10 +55,12 @@ class ClashService extends ClashHandlerInterface {
             .transform(utf8.decoder)
             .transform(const LineSplitter())
             .listen(
-          (data) async {
-            final result =
-                await Isolate.run(() => _decodeActionResult(data.trim()));
-            handleResult(result);
+          (data) {
+            handleResult(
+              ActionResult.fromJson(
+                json.decode(data.trim()),
+              ),
+            );
           },
         );
       }

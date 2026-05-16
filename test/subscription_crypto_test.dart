@@ -22,17 +22,17 @@ void main() {
       'elkhGA9mTCgsF2scgj4z0sIDzk6/i1+npnmdvgcn+vvWBIAdJzl3HRU2OayTDY+J';
 
   group('SubscriptionCrypto', () {
-    test('decrypts a payload produced by crypto.py', () {
-      final plaintext = SubscriptionCrypto.decryptBase64(
+    test('decrypts a payload produced by crypto.py', () async {
+      final plaintext = await SubscriptionCrypto.decryptBase64(
         encrypted,
         password: password,
       );
       expect(utf8.decode(plaintext), expectedPlaintext);
     });
 
-    test('rejects the wrong password', () {
+    test('rejects the wrong password', () async {
       expect(
-        () => SubscriptionCrypto.decryptBase64(
+        () async => await SubscriptionCrypto.decryptBase64(
           encrypted,
           password: 'wrong-password',
         ),
@@ -40,9 +40,9 @@ void main() {
       );
     });
 
-    test('rejects a mismatched iteration count', () {
+    test('rejects a mismatched iteration count', () async {
       expect(
-        () => SubscriptionCrypto.decryptBase64(
+        () async => await SubscriptionCrypto.decryptBase64(
           encrypted,
           password: password,
           iterations: 100,
@@ -51,9 +51,9 @@ void main() {
       );
     });
 
-    test('rejects non-Base64 garbage', () {
+    test('rejects non-Base64 garbage', () async {
       expect(
-        () => SubscriptionCrypto.decryptBase64(
+        () async => await SubscriptionCrypto.decryptBase64(
           'this is not base64!',
           password: password,
         ),

@@ -289,7 +289,7 @@ class _EditProfileViewState extends State<EditProfileView> {
         return;
       }
       final plaintext = await globalState.safeRun<Uint8List>(
-        () async => SubscriptionCrypto.decryptBase64(
+        () async => await SubscriptionCrypto.decryptBase64(
           encoded,
           password: password,
           iterations: iterations,

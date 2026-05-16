@@ -17,8 +17,6 @@ import 'clash_config.dart';
 part 'generated/profile.freezed.dart';
 part 'generated/profile.g.dart';
 
-String _decodeUtf8(Uint8List bytes) => utf8.decode(bytes);
-
 typedef SelectedMap = Map<String, String>;
 
 @freezed
@@ -299,8 +297,7 @@ extension ProfileExtension on Profile {
   }
 
   Future<Profile> saveFile(Uint8List bytes) async {
-    final configText = await Isolate.run(() => _decodeUtf8(bytes));
-    final message = await clashCore.validateConfig(configText);
+    final message = await clashCore.validateConfig(utf8.decode(bytes));
     if (message.isNotEmpty) {
       throw message;
     }

@@ -15,9 +15,6 @@ import 'package:flclashx/state.dart';
 import 'generated/clash_ffi.dart';
 import 'interface.dart';
 
-ActionResult _decodeActionResult(String message) =>
-    ActionResult.fromJson(json.decode(message));
-
 class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
 
   factory ClashLib() {
@@ -40,7 +37,7 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
     commonPrint.log("[DART] ClashLib._initService: Starting service initialization...");
     await service?.destroy();
     _registerMainPort(receiverPort.sendPort);
-    receiverPort.listen((message) async {
+    receiverPort.listen((message) {
       if (message is SendPort) {
         commonPrint.log("[DART] ClashLib: Received service SendPort");
         if (_canSendCompleter.isCompleted) {
@@ -55,8 +52,11 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
         // Ignore IPC responses (Map type) - they don't need processing
         return;
       } else {
-        final result = await Isolate.run(() => _decodeActionResult(message));
-        handleResult(result);
+        handleResult(
+          ActionResult.fromJson(json.decode(
+            message,
+          )),
+        );
       }
     });
     commonPrint.log("[DART] ClashLib: Calling service.init()...");
