@@ -12,6 +12,14 @@ import 'package:flclashx/state.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 
+List<ExternalProvider> _decodeExternalProviders(String data) {
+  return (json.decode(data) as List<dynamic>)
+      .map(
+        (item) => ExternalProvider.fromJson(item),
+      )
+      .toList();
+}
+
 class ClashCore {
 
   factory ClashCore() {
@@ -164,15 +172,7 @@ class ClashCore {
       return [];
     }
     return Isolate.run<List<ExternalProvider>>(
-      () {
-        final externalProviders =
-            (json.decode(externalProvidersRawString) as List<dynamic>)
-                .map(
-                  (item) => ExternalProvider.fromJson(item),
-                )
-                .toList();
-        return externalProviders;
-      },
+      () => _decodeExternalProviders(externalProvidersRawString),
     );
   }
 

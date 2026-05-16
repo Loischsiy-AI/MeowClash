@@ -15,6 +15,9 @@ import 'package:flclashx/state.dart';
 import 'generated/clash_ffi.dart';
 import 'interface.dart';
 
+ActionResult _decodeActionResult(String message) =>
+    ActionResult.fromJson(json.decode(message));
+
 class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
 
   factory ClashLib() {
@@ -52,9 +55,7 @@ class ClashLib extends ClashHandlerInterface with AndroidClashInterface {
         // Ignore IPC responses (Map type) - they don't need processing
         return;
       } else {
-        final result = await Isolate.run(
-          () => ActionResult.fromJson(json.decode(message)),
-        );
+        final result = await Isolate.run(() => _decodeActionResult(message));
         handleResult(result);
       }
     });

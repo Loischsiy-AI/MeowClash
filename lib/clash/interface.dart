@@ -86,6 +86,10 @@ mixin AndroidClashInterface {
   Future<DateTime?> getRunTime();
 }
 
+String _encodeJson(dynamic data) => json.encode(data);
+
+String _encodeAction(Action action) => json.encode(action);
+
 abstract class ClashHandlerInterface with ClashInterface {
   Map<String, Completer> callbackCompleterMap = {};
 
@@ -142,7 +146,7 @@ abstract class ClashHandlerInterface with ClashInterface {
       method: method,
       data: data,
     );
-    final message = await Isolate.run(() => json.encode(action));
+    final message = await Isolate.run(() => _encodeAction(action));
     sendMessage(message);
 
     return (callbackCompleterMap[id]! as Completer<T>).safeFuture(
@@ -208,7 +212,7 @@ abstract class ClashHandlerInterface with ClashInterface {
 
   @override
   Future<String> setupConfig(SetupParams setupParams) async {
-    final data = await Isolate.run(() => json.encode(setupParams));
+    final data = await Isolate.run(() => _encodeJson(setupParams));
     return invoke<String>(
       method: ActionMethod.setupConfig,
       data: data,
