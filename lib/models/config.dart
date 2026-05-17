@@ -43,6 +43,8 @@ const defaultThemeProps = ThemeProps(
 const List<DashboardWidget> defaultDashboardWidgets = [
   DashboardWidget.announce,
   DashboardWidget.metainfo,
+  DashboardWidget.networkDetection,
+  DashboardWidget.memoryInfo,
   DashboardWidget.outboundModeV2,
 ];
 

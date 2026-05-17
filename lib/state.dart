@@ -116,7 +116,8 @@ class GlobalState {
           profiles: [
             Profile.normal(
               label: 'Default Subscription',
-              url: 'https://example.com/subscription',
+              url:
+                  'https://gitverse.ru/api/repos/Loischsiy/server-subscribers/raw/branch/master/main-subscribers.yaml',
             ),
           ],
         );
