@@ -536,7 +536,7 @@ jobs:
           tag_name: ${{ needs.prepare.outputs.release_tag }}
           name: MeowClash ${{ needs.prepare.outputs.release_tag }}
           target_commitish: ${{ github.sha }}
-          files: ./dist/*
+          files: ./dist/**/*
           body_path: ./release.md
           prerelease: ${{ inputs.app_env != 'stable' }}
           fail_on_unmatched_files: true
