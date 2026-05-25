@@ -279,11 +279,17 @@ class Windows {
 
     final res = runas("cmd.exe", command);
 
-    await Future.delayed(
-      const Duration(milliseconds: 300),
-    );
+    if (!res) return false;
 
-    return res;
+    for (var i = 0; i < 10; i++) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      final currentStatus = await checkService();
+      if (currentStatus == WindowsHelperServiceStatus.running) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /// Try to start an existing service without UAC.
