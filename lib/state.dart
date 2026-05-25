@@ -520,6 +520,16 @@ class GlobalState {
     rawConfig["tun"]["route-address"] = realPatchConfig.tun.routeAddress;
     rawConfig["tun"]["auto-route"] = realPatchConfig.tun.autoRoute;
     rawConfig["geodata-loader"] = realPatchConfig.geodataLoader.name;
+    final skipAuth = List<String>.from(
+      rawConfig["skip-auth-prefixes"] as List? ?? [],
+    );
+    if (!skipAuth.any((p) => p.startsWith("127.0.0.1"))) {
+      skipAuth.add("127.0.0.1/32");
+    }
+    if (!skipAuth.any((p) => p.startsWith("::1"))) {
+      skipAuth.add("::1/128");
+    }
+    rawConfig["skip-auth-prefixes"] = skipAuth;
     if (rawConfig["sniffer"]?["sniff"] != null) {
       for (final value in (rawConfig["sniffer"]?["sniff"] as Map).values) {
         if (value["ports"] != null && value["ports"] is List) {
