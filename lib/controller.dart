@@ -737,6 +737,13 @@ class AppController {
       final code = await system.authorizeCore();
       switch (code) {
         case AuthorizeCode.success:
+          // Persist the elevated state before restartCore so the recursive
+          // _setupClashConfig it triggers observes realTunEnable=true and
+          // skips the authorization branch. Otherwise checkIsAdmin races
+          // against the freshly installed helper service becoming pingable
+          // and re-enters authorizeCore -> installService -> UAC on every
+          // pass (infinite admin-prompt loop on startup).
+          _ref.read(realTunEnableProvider.notifier).value = enableTun;
           await restartCore();
           return Result.error("");
         case AuthorizeCode.none:
