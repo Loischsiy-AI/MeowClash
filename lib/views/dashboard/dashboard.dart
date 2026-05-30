@@ -70,24 +70,13 @@ class _DashboardViewState extends ConsumerState<DashboardView> with PageMixin {
                   ),
                 )
               : const SizedBox()),
-        Consumer(
-          builder: (context, ref, child) {
-            final denyEditing = ref.watch(currentProfileProvider
-                .select((profile) => profile?.providerHeaders['meowclash-denywidgets']));
-
-            if (denyEditing == 'true') {
-              return const SizedBox.shrink();
-            }
-
-            return IconButton(
-              icon: _buildIsEdit((isEdit) => isEdit
-                    ? const Icon(Icons.save)
-                    : const Icon(
-                        Icons.edit,
-                      )),
-              onPressed: _handleUpdateIsEdit,
-            );
-          },
+        IconButton(
+          icon: _buildIsEdit((isEdit) => isEdit
+                ? const Icon(Icons.save)
+                : const Icon(
+                    Icons.edit,
+                  )),
+          onPressed: _handleUpdateIsEdit,
         ),
       ];
 

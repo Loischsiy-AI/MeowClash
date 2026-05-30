@@ -101,36 +101,10 @@ class AppController {
 
     final profileName = profile.label ?? profile.id;
 
-    // Decode service name from header
-    String serviceName = "";
-    final svc = profile.providerHeaders['meowclash-servicename'];
-    if (svc != null && svc.isNotEmpty) {
-      try {
-        final normalized = base64.normalize(svc);
-        serviceName = utf8.decode(base64.decode(normalized)).trim();
-      } catch (_) {
-        serviceName = svc.trim();
-      }
-    }
-
     vpn?.updateProfileInfo(
       profileName: profileName,
-      serviceName: serviceName,
+      serviceName: "",
     );
-
-    // Get current server name from selectedMap
-    String? groupName = profile.providerHeaders['meowclash-serverinfo'];
-    if (groupName != null && groupName.isNotEmpty) {
-      String decodedGroupName;
-      try {
-        final normalized = base64.normalize(groupName);
-        decodedGroupName = utf8.decode(base64.decode(normalized)).trim();
-      } catch (_) {
-        decodedGroupName = groupName.trim();
-      }
-      final serverName = profile.selectedMap[decodedGroupName] ?? "";
-      vpn?.updateServerName(serverName);
-    }
   }
 
   Future<void> restartCore() async {
@@ -225,154 +199,6 @@ class AppController {
     _ref.read(localIpProvider.notifier).value = await utils.getLocalIpAddress();
   }
 
-  void applySubscriptionSettings(Set<String>? settings) {
-    try {
-      final currentSettings = _ref.read(appSettingProvider);
-      if (currentSettings.overrideProviderSettings) {
-        commonPrint.log(
-            "Override provider settings enabled - ignoring subscription settings");
-        return;
-      }
-
-      // If settings is null (header removed), reset to defaults (false)
-      final effectiveSettings = settings ?? {};
-
-      _ref
-          .read(appSettingProvider.notifier)
-          .updateState((state) => state.copyWith(
-                minimizeOnExit: effectiveSettings.contains('minimize'),
-                autoLaunch: effectiveSettings.contains('autorun'),
-                silentLaunch: effectiveSettings.contains('shadowstart'),
-                autoRun: effectiveSettings.contains('autostart'),
-                autoCheckUpdate: effectiveSettings.contains('autoupdate'),
-              ));
-    } catch (e) {
-      // Silently ignore subscription settings errors
-    }
-  }
-
-  void _applyAllHeaderSettings(Profile profile, {required bool isNewProfile}) {
-    final headers = profile.providerHeaders;
-    if (headers.isEmpty) return;
-
-    final customBehavior = headers['meowclash-custom'];
-
-    final shouldApply = switch (customBehavior) {
-      'add' => isNewProfile,
-      'update' => true,
-      _ => false,
-    };
-
-    if (!shouldApply) return;
-
-    _applyProviderSettings(headers);
-    _applyThemeColor(headers);
-    _applyCustomViewSettings(profile);
-  }
-
-  void _applyProviderSettings(Map<String, String> headers) {
-    try {
-      final currentSettings = _ref.read(appSettingProvider);
-      if (currentSettings.overrideProviderSettings) {
-        commonPrint.log(
-            "Override provider settings enabled - ignoring provider settings");
-        return;
-      }
-
-      final settingsHeader = headers['meowclash-settings'];
-      if (settingsHeader != null) {
-        final settings = settingsHeader
-            .split(',')
-            .map((s) => s.trim().toLowerCase())
-            .where((s) => s.isNotEmpty)
-            .toSet();
-        applySubscriptionSettings(settings);
-      }
-    } catch (e) {
-      commonPrint.log("Failed to apply provider settings: $e");
-    }
-  }
-
-  void _applyThemeColor(Map<String, String> headers) {
-    try {
-      final hexHeader = headers['meowclash-hex'];
-      if (hexHeader != null && hexHeader.isNotEmpty) {
-        _applyThemeColorFromHex(hexHeader);
-      }
-    } catch (e) {
-      commonPrint.log("Failed to apply theme color: $e");
-    }
-  }
-
-  void _applyThemeColorFromHex(String hexHeader) {
-    try {
-      final parts = hexHeader.split(':');
-      final hexString = parts[0].trim().replaceAll('#', '');
-      final variantName = parts.length > 1 ? parts[1].trim() : null;
-
-      // Check for pureblack flag in any position after color
-      bool enablePureBlack = false;
-      for (int i = 1; i < parts.length; i++) {
-        final part = parts[i].trim().toLowerCase();
-        if (part == 'pureblack') {
-          enablePureBlack = true;
-          break;
-        }
-      }
-
-      if (hexString.length != 6 && hexString.length != 8) {
-        commonPrint.log('Invalid hex color length: $hexString');
-        return;
-      }
-
-      final colorValue = int.parse(
-        hexString.length == 6 ? 'FF$hexString' : hexString,
-        radix: 16,
-      );
-
-      commonPrint
-          .log('Applying theme from meowclash-hex: #${hexString.toUpperCase()}'
-              '${variantName != null ? ', variant=$variantName' : ''}'
-              '${enablePureBlack ? ', pureBlack=true' : ''}');
-
-      _ref.read(themeSettingProvider.notifier).updateState((state) {
-        final updatedColors = [...state.primaryColors];
-        if (!updatedColors.contains(colorValue)) {
-          updatedColors.add(colorValue);
-        }
-
-        DynamicSchemeVariant? newVariant;
-        if (variantName != null && variantName.toLowerCase() != 'pureblack') {
-          try {
-            newVariant = DynamicSchemeVariant.values.firstWhere(
-              (v) => v.name.toLowerCase() == variantName.toLowerCase(),
-            );
-            commonPrint.log('Using scheme variant: ${newVariant.name}');
-          } catch (e) {
-            commonPrint.log(
-                'Unknown variant: $variantName, using current: ${state.schemeVariant.name}');
-          }
-        }
-
-        commonPrint.log(
-            'Theme updated: primaryColor=#${colorValue.toRadixString(16).toUpperCase()}'
-            '${enablePureBlack ? ', pureBlack=true' : ''}');
-
-        return state.copyWith(
-          primaryColor: colorValue,
-          primaryColors: updatedColors,
-          schemeVariant: newVariant ?? state.schemeVariant,
-          pureBlack: enablePureBlack,
-        );
-      });
-
-      savePreferencesDebounce();
-
-      commonPrint.log('Theme applied successfully');
-    } catch (e) {
-      commonPrint.log('Failed to parse hex color from header: $hexHeader - $e');
-    }
-  }
 
   Future<void> updateProfile(Profile profile) async {
     final prefs = await SharedPreferences.getInstance();
@@ -382,9 +208,6 @@ class AppController {
     );
 
     final headers = newProfile.providerHeaders;
-    if (headers.isNotEmpty) {
-      _applyAllHeaderSettings(newProfile, isNewProfile: false);
-    }
 
     final showHwidLimit = headers['x-hwid-limit']?.toLowerCase() == 'true';
     final announceText = headers['announce'];
@@ -781,26 +604,6 @@ class AppController {
       patchConfig = syncedConfig;
     }
 
-    // meowclash-androidsecure header: on Android, when the current profile
-    // declares "androidsecure: true", force mixedPort=0 on the Dart-side
-    // ClashConfig so that all downstream providers (coreStateProvider,
-    // proxyStateProvider, http.handleFindProxy) observe the disabled inbound
-    // and behave consistently with patchRawConfig's forced override. Applied
-    // after syncFromProvider so it overrides both user and provider values.
-    if (Platform.isAndroid) {
-      final profile = _ref.read(currentProfileProvider);
-      final secure = profile?.providerHeaders['meowclash-androidsecure']
-              ?.trim()
-              .toLowerCase() ==
-          'true';
-      if (secure && patchConfig.mixedPort != 0) {
-        patchConfig = patchConfig.copyWith(mixedPort: 0);
-        _ref
-            .read(patchClashConfigProvider.notifier)
-            .updateState((state) => state.copyWith(mixedPort: 0));
-      }
-    }
-
     final res = await _requestAdmin(patchConfig.tun.enable);
     if (res.isError) {
       return;
@@ -845,17 +648,6 @@ class AppController {
     _ref.read(delayDataSourceProvider.notifier).value = {};
 
     final currentProfileId = _ref.read(currentProfileIdProvider);
-    if (currentProfileId != null) {
-      final profiles = _ref.read(profilesProvider);
-      var currentProfile = profiles.firstWhere(
-        (p) => p.id == currentProfileId,
-        orElse: () => profiles.first,
-      );
-
-      if (currentProfile.providerHeaders.isNotEmpty) {
-        _applyAllHeaderSettings(currentProfile, isNewProfile: false);
-      }
-    }
 
     applyProfile();
     _ref.read(logsProvider.notifier).value = FixedList(500);
@@ -1417,8 +1209,6 @@ class AppController {
       );
 
       if (profile != null) {
-        _applyAllHeaderSettings(profile, isNewProfile: true);
-
         final headers = profile.providerHeaders;
         final showHwidLimit = headers['x-hwid-limit']?.toLowerCase() == 'true';
         final announceText = headers['announce'];
@@ -1564,112 +1354,6 @@ class AppController {
             systemProxy: !state.systemProxy,
           ),
         );
-  }
-
-  void _applyCustomViewSettings(Profile profile) {
-    final headers = profile.providerHeaders;
-
-    final dashboardLayout = headers['meowclash-widgets'];
-    if (dashboardLayout != null && dashboardLayout.isNotEmpty) {
-      final newLayout = DashboardWidgetParser.parseLayout(dashboardLayout);
-      if (newLayout.isNotEmpty) {
-        _ref.read(appSettingProvider.notifier).updateState(
-              (state) => state.copyWith(dashboardWidgets: newLayout),
-            );
-      }
-    }
-
-    final proxiesView = headers['meowclash-view'];
-    if (proxiesView != null && proxiesView.isNotEmpty) {
-      final proxiesStyleNotifier =
-          _ref.read(proxiesStyleSettingProvider.notifier);
-      proxiesStyleNotifier.updateState((currentState) {
-        var newState = currentState;
-        final settings = proxiesView.split(';');
-        for (final setting in settings) {
-          final parts = setting.split(':');
-          if (parts.length == 2) {
-            final key = parts[0].trim().toLowerCase();
-            final value = parts[1].trim().toLowerCase();
-            switch (key) {
-              case 'type':
-                switch (value) {
-                  case 'list':
-                    newState = newState.copyWith(type: ProxiesType.list);
-                    break;
-                  case 'tab':
-                    newState = newState.copyWith(type: ProxiesType.tab);
-                    break;
-                }
-                break;
-              case 'sort':
-                switch (value) {
-                  case 'none':
-                    newState =
-                        newState.copyWith(sortType: ProxiesSortType.none);
-                    break;
-                  case 'delay':
-                    newState =
-                        newState.copyWith(sortType: ProxiesSortType.delay);
-                    break;
-                  case 'name':
-                    newState =
-                        newState.copyWith(sortType: ProxiesSortType.name);
-                    break;
-                }
-                break;
-              case 'layout':
-                switch (value) {
-                  case 'loose':
-                    newState = newState.copyWith(layout: ProxiesLayout.loose);
-                    break;
-                  case 'standard':
-                    newState =
-                        newState.copyWith(layout: ProxiesLayout.standard);
-                    break;
-                  case 'tight':
-                    newState = newState.copyWith(layout: ProxiesLayout.tight);
-                    break;
-                }
-                break;
-              case 'icon':
-                switch (value) {
-                  case 'standard':
-                  case 'icon':
-                    newState =
-                        newState.copyWith(iconStyle: ProxiesIconStyle.icon);
-                    break;
-                  case 'none':
-                    newState =
-                        newState.copyWith(iconStyle: ProxiesIconStyle.none);
-                    break;
-                }
-                break;
-              case 'card':
-                switch (value) {
-                  case 'expand':
-                    newState =
-                        newState.copyWith(cardType: ProxyCardType.expand);
-                    break;
-                  case 'shrink':
-                    newState =
-                        newState.copyWith(cardType: ProxyCardType.shrink);
-                    break;
-                  case 'min':
-                    newState = newState.copyWith(cardType: ProxyCardType.min);
-                    break;
-                  case 'oneline':
-                    newState =
-                        newState.copyWith(cardType: ProxyCardType.oneline);
-                    break;
-                }
-                break;
-            }
-          }
-        }
-        return newState;
-      });
-    }
   }
 
   Future<List<Package>> getPackages() async {

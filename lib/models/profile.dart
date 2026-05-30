@@ -224,11 +224,19 @@ extension ProfileExtension on Profile {
       }
     }
     
-    response.headers.forEach((name, values) {
-      if (name.toLowerCase().startsWith('meowclash-') && values.isNotEmpty) {
-        newProviderHeaders[name.toLowerCase()] = values.first;
+    // Only the subscription-decryption credentials are still read from
+    // meowclash-* response headers. The rest of the meowclash-* customization
+    // system has been removed.
+    const passwordHeaderNames = [
+      'meowclash-password',
+      'meowclash-password-iterations',
+    ];
+    for (final headerName in passwordHeaderNames) {
+      final value = response.headers.value(headerName);
+      if (value != null && value.isNotEmpty) {
+        newProviderHeaders[headerName] = value;
       }
-    });
+    }
 
     // Preserve saved credentials if not provided by server
     if (decryptionPassword != null) {

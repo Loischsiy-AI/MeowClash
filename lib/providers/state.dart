@@ -470,9 +470,9 @@ Profile? currentProfile(Ref ref) {
 
 @riverpod
 bool globalModeEnabled(Ref ref) {
-  final profile = ref.watch(currentProfileProvider);
-  final value = profile?.providerHeaders['meowclash-globalmode'];
-  return value?.toLowerCase() != 'false';
+  // The meowclash-* customization system has been removed; global mode is
+  // always available.
+  return true;
 }
 
 @riverpod
@@ -483,24 +483,13 @@ bool hasAnnounceData(Ref ref) {
 }
 
 @riverpod
-bool hasServiceInfoData(Ref ref) {
-  final profile = ref.watch(currentProfileProvider);
-  final value = profile?.providerHeaders['meowclash-servicename'];
-  return value != null && value.isNotEmpty;
-}
+bool hasServiceInfoData(Ref ref) => false;
 
 @riverpod
-bool hasServerInfoData(Ref ref) {
-  final profile = ref.watch(currentProfileProvider);
-  final value = profile?.providerHeaders['meowclash-serverinfo'];
-  return value != null && value.isNotEmpty;
-}
+bool hasServerInfoData(Ref ref) => false;
 
 @riverpod
-String? backgroundUrl(Ref ref) {
-  final profile = ref.watch(currentProfileProvider);
-  return profile?.providerHeaders['meowclash-background'];
-}
+String? backgroundUrl(Ref ref) => null;
 
 @riverpod
 int getProxiesColumns(Ref ref) {
