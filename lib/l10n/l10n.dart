@@ -269,6 +269,11 @@ class AppLocalizations {
     );
   }
 
+  /// `Ukrainian`
+  String get uk {
+    return Intl.message('Ukrainian', name: 'uk', desc: '', args: []);
+  }
+
   /// `Theme`
   String get theme {
     return Intl.message('Theme', name: 'theme', desc: '', args: []);
@@ -3775,6 +3780,7 @@ class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {
       Locale.fromSubtags(languageCode: 'ja'),
       Locale.fromSubtags(languageCode: 'ru'),
       Locale.fromSubtags(languageCode: 'zh', countryCode: 'CN'),
+      Locale.fromSubtags(languageCode: 'uk'),
     ];
   }
 
