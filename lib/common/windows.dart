@@ -278,12 +278,26 @@ class Windows {
     ].join(" ");
 
     final res = runas("cmd.exe", command);
+    if (!res) {
+      return false;
+    }
 
-    await Future.delayed(
-      const Duration(milliseconds: 300),
-    );
+    // `sc start` returns once the SCM accepts the request, but the helper
+    // process may not yet be bound to helperPort. Poll until checkService
+    // reports running (RUNNING + pingHelper) so the caller does not race
+    // and immediately re-enter authorizeCore -> installService -> UAC.
+    for (var i = 0; i < 20; i++) {
+      await Future.delayed(const Duration(milliseconds: 250));
+      if (await checkService() == WindowsHelperServiceStatus.running) {
+        return true;
+      }
+    }
 
-    return res;
+    // Service was installed and SCM reports started, but the helper is not
+    // responding on helperPort (commonly: SHA token mismatch between this
+    // app build and the helper binary). Report failure so authorizeCore
+    // surfaces an error to the user instead of optimistically retrying.
+    return false;
   }
 
   /// Try to start an existing service without UAC.
