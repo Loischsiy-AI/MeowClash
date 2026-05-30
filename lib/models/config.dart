@@ -46,6 +46,11 @@ const List<DashboardWidget> defaultDashboardWidgets = [
   DashboardWidget.networkDetection,
   DashboardWidget.memoryInfo,
   DashboardWidget.outboundModeV2,
+  // Desktop-only widgets (tunButton / systemProxyButton declare
+  // platforms: desktopPlatforms in the enum, so they are filtered out
+  // on Android by dashboard._isAllowedWidget at runtime).
+  DashboardWidget.tunButton,
+  DashboardWidget.systemProxyButton,
 ];
 
 List<DashboardWidget> dashboardWidgetsSafeFormJson(

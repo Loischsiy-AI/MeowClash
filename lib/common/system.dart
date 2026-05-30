@@ -19,6 +19,11 @@ class System {
   static System? _instance;
   List<String>? originDns;
 
+  /// Tracks whether elevation has been attempted in this process to prevent
+  /// repeated UAC prompts when the helper service install does not produce
+  /// a pingable helper (e.g. SHA token mismatch with the installed core).
+  bool _hasAttemptedElevation = false;
+
   bool get isDesktop =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
@@ -84,7 +89,16 @@ class System {
       if (startedWithoutUac == true) {
         return AuthorizeCode.success;
       }
-      
+
+      // If a previous attempt in this session already failed to produce a
+      // working helper, do not re-prompt for UAC — the user has no way to
+      // resolve a SHA mismatch / bind failure at runtime and another prompt
+      // only produces the infinite admin-prompt loop reported as a bug.
+      if (_hasAttemptedElevation) {
+        return AuthorizeCode.error;
+      }
+      _hasAttemptedElevation = true;
+
       // Service not installed or couldn't start - need to install with UAC
       final result = await windows?.installService();
       if (result == true) {
