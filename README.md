@@ -115,3 +115,13 @@ Support the following actions
            ```bash
            dart .\setup.dart macos --arch <arm64 | amd64>
            ```
+
+## Fork changes
+
+### `meowclash-*` provider-override system (2026-05)
+
+The custom `meowclash-*` override system was fully removed. These keys were only ever read from the subscription's HTTP **response headers** (not from the profile YAML body), so adding them inside a profile never had any effect. Subscription decryption was kept fully working.
+
+**Kept and still working:**
+- Encrypted subscription decryption — `meowclash-password`, `meowclash-password-iterations`.
+- Other non-override headers: `announce`, `support-url`, `profile-update-interval`, `x-hwid-limit` (with the device-limit dialog).

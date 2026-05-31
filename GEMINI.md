@@ -215,3 +215,36 @@ When significant changes occur in the project, remind the user to update this `G
 - New or removed major dependencies
 
 If you detect such a change during a conversation, briefly note: *"This change affects the project structure described in GEMINI.md — you may want to update it to stay in sync."*
+
+---
+
+## Change Log — `meowclash-*` provider-override system removed (2026-05)
+
+The custom `meowclash-*` override system was fully removed (variant B = full physical deletion). These keys were read **only** from the subscription's HTTP **response headers**, never from the profile YAML body, so adding them to a profile's YAML had no effect. **Subscription decryption was deliberately kept fully working.**
+
+### Removed (deleted / no-op now)
+
+Headers no longer handled: `meowclash-settings`, `meowclash-hex`, `meowclash-widgets`, `meowclash-view`, `meowclash-custom`, `meowclash-androidsecure`, `meowclash-servicename`, `meowclash-servicelogo`, `meowclash-serverinfo`, `meowclash-globalmode`, `meowclash-denywidgets`, `meowclash-background`.
+
+### Kept — MUST stay functional
+
+- **Subscription decryption:** `meowclash-password`, `meowclash-password-iterations`, `_maybeDecrypt`, `SubscriptionCrypto`, `kDefaultPbkdf2Iterations`, `SubscriptionPasswordRequiredException`, `lib/services/subscription_crypto.dart`, `Profile.update(decryptionPassword, decryptionIterations)`. Covered by `test/subscription_crypto_test.dart`.
+- Non-override headers: `announce`, `support-url`, `profile-update-interval`, `x-hwid-limit` + device-limit dialog.
+
+### Files modified
+
+| File | Change |
+|------|--------|
+| `lib/models/profile.dart` | Generic `meowclash-*` collection loop replaced with password-only collection. |
+| `lib/providers/state.dart` | 4 providers neutralized: `globalModeEnabled→true`, `hasServiceInfoData→false`, `hasServerInfoData→false`, `backgroundUrl→null` (`hasAnnounceData` kept). |
+| `lib/views/dashboard/dashboard.dart` | `denywidgets` gate removed; button renders directly. |
+| `lib/controller.dart` | Deleted `applySubscriptionSettings`, `_applyAllHeaderSettings`, `_applyProviderSettings`, `_applyThemeColor`, `_applyThemeColorFromHex`, `_applyCustomViewSettings` + all call sites; cleaned `initForegroundCache` (servicename/serverinfo) and `_setupClashConfig` (androidsecure). |
+| `lib/views/application_setting.dart` | Removed `OverrideProviderSettingsItem`; ungated `MinimizeItem`/`AutoLaunchItem`/`SilentLaunchItem`/`AutoRunItem`/`AutoCheckUpdateItem` (now always user-controlled). |
+
+Former header→setting mapping (now user-controlled only): `minimize→minimizeOnExit`, `autorun→autoLaunch`, `shadowstart→silentLaunch`, `autostart→autoRun`, `autoupdate→autoCheckUpdate`.
+
+### Follow-ups (manual)
+
+- Run `dart run build_runner build --delete-conflicting-outputs` then `flutter analyze` to verify no stray references remain.
+- `overrideProviderSettings` model field is still present (left to avoid freezed cascade + persisted-state migration).
+- Dead widgets still exported by `widgets.dart`: `service_info_widget.dart`, `change_server_button.dart` — removing them requires `DashboardWidget` enum cleanup + rebuild.
